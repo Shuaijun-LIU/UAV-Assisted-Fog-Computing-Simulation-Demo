@@ -951,7 +951,16 @@
             }
             update(target, current, dt) {
                 const error = target - current;
-                this.integral += error * dt;
+                
+                // Only accumulate integral if error is significant (anti-windup)
+                if (Math.abs(error) > 0.1) {
+                    this.integral += error * dt;
+                } else {
+                    // Decay integral when error is small to prevent oscillation
+                    this.integral *= 0.98;
+                }
+                
+                // Limit integral to prevent windup
                 if (this.integral > 5) this.integral = 5;
                 if (this.integral < -5) this.integral = -5;
                 
@@ -980,8 +989,9 @@
                 this.pitchRatePID = new PID(1.5, 0.0, 0.08, -0.4, 0.4);
                 this.rollRatePID = new PID(1.5, 0.0, 0.08, -0.4, 0.4);
                 this.yawRatePID = new PID(2.0, 0.0, 0.05, -0.4, 0.4);
-                // Height PID for auto-hover
-                this.heightPID = new PID(0.15, 0.0, 0.05, -0.3, 0.3);
+                // Height PID for auto-hover - Re-tuned for direct throttle control (Stable)
+                // P: 0.15 (Response), I: 0.05 (Steady state error/gravity), D: 0.25 (Damping)
+                this.heightPID = new PID(0.15, 0.05, 0.25, -0.4, 0.4);
                 // Position hold PIDs for wind compensation
                 this.posXPID = new PID(0.08, 0.0, 0.02, -0.15, 0.15);
                 this.posZPID = new PID(0.08, 0.0, 0.02, -0.15, 0.15);
@@ -1023,9 +1033,12 @@
                 const hasHorizontalInput = input.w || input.s || input.a || input.d;
                 if (!hasHorizontalInput) {
                     // Position hold: maintain current position
+                    // IMPORTANT: Keep targetHeight unchanged when no vertical input
+                    // Only update horizontal position for position hold
                     this.targetPosition.set(droneObj.position.x, this.targetHeight, droneObj.position.z);
                 } else {
-                    // Update target position to current when moving (so it doesn't fight user input)
+                    // When moving horizontally, keep targetHeight unchanged
+                    // Only update horizontal target position
                     this.targetPosition.set(droneObj.position.x, this.targetHeight, droneObj.position.z);
                 }
                 
@@ -1068,32 +1081,37 @@
                 if (input.ArrowLeft) targetYawRate = 1.5; // Turn Left (CCW, +Y)
                 if (input.ArrowRight) targetYawRate = -1.5; // Turn Right (CW, -Y)
 
-                // Auto-hover: adjust throttle to maintain target height
-                // Only use manual control if ArrowUp/Down is pressed
+                // Auto-hover & Altitude Control
+                // Improved logic: Direct mapping of PID to Throttle (prevents double-integration instability)
+                
+                // 1. Handle Manual Target Adjustment
+                const altitudeSpeed = 10.0;
                 if (input.ArrowUp) {
-                    this.targetHeight += 3.0 * dt; // Increase target height
-                    // Direct throttle control for immediate response
-                    this.baseThrottle += 0.5 * dt;
-                    // Reset height PID when manually controlling
-                    this.heightPID.integral *= 0.9;
-                    // Limit throttle when ascending
-                    this.baseThrottle = Math.max(0.3, Math.min(0.9, this.baseThrottle));
+                    this.targetHeight += altitudeSpeed * dt;
                 } else if (input.ArrowDown) {
-                    this.targetHeight -= 3.0 * dt; // Decrease target height
-                    // Faster throttle reduction for quicker descent response
-                    this.baseThrottle -= 1.2 * dt; // Increased from 0.5 to 1.2 for faster descent
-                    // Reset height PID when manually controlling
-                    this.heightPID.integral *= 0.9;
-                    // Allow lower throttle when descending (down to 0.1 to allow gravity to work)
-                    this.baseThrottle = Math.max(0.1, Math.min(0.9, this.baseThrottle));
-                } else {
-                    // Auto-hover: use PID to maintain target height
-                    const currentHeight = droneObj.position.y;
-                    const throttleAdjust = this.heightPID.update(this.targetHeight, currentHeight, dt);
-                    this.baseThrottle += throttleAdjust * dt;
-                    // Normal hover throttle range
-                    this.baseThrottle = Math.max(0.3, Math.min(0.9, this.baseThrottle));
+                    this.targetHeight -= altitudeSpeed * dt;
                 }
+                this.targetHeight = Math.max(2.0, Math.min(MAX_ALT - 2, this.targetHeight));
+
+                // 2. Calculate Hover Feed-Forward
+                // Mass = 1.0, G = 9.8. Required Force = 9.8N.
+                // Max Thrust approx (4 motors * 1.0 * 6.0) = 24N.
+                // Base Hover Throttle ~= 9.8 / 24 ~= 0.41
+                // We use slightly higher 0.43 to account for drag/overhead
+                const hoverFeedForward = 0.43;
+
+                // 3. PID Control
+                // Standard PID update: (Target, Current, dt)
+                const pidThrottleAdjustment = this.heightPID.update(this.targetHeight, droneObj.position.y, dt);
+
+                // 4. Apply Control
+                // Throttle = FeedForward + PID Correction
+                this.baseThrottle = hoverFeedForward + pidThrottleAdjustment;
+
+                // 5. Safety Clamps
+                // Ensure throttle stays within motor capabilities (0.0 to 1.0)
+                // We cap min at 0.05 to ensure motors don't completely stop in air
+                this.baseThrottle = Math.max(0.05, Math.min(1.0, this.baseThrottle));
                 
                 this.targetHeight = Math.max(5, Math.min(MAX_ALT - 5, this.targetHeight));
 
@@ -1339,9 +1357,15 @@
                 droneDynamics.reset();
                 droneDynamics.euler.y = droneGroup.rotation.y; 
                 droneDynamics.velocity.copy(velocity); 
-                droneDynamics.baseThrottle = 0.55;
-                droneDynamics.targetHeight = droneGroup.position.y; // Set target to current height
-                droneDynamics.targetPosition.set(droneGroup.position.x, droneGroup.position.y, droneGroup.position.z); // Set target position
+                // Calculate hover throttle based on current position (account for gravity)
+                // If at 100m, base throttle should be around 0.55 to hover
+                const currentHeight = droneGroup.position.y;
+                droneDynamics.baseThrottle = 0.55; // Standard hover throttle
+                droneDynamics.targetHeight = currentHeight; // Set target to current height exactly
+                droneDynamics.targetPosition.set(droneGroup.position.x, currentHeight, droneGroup.position.z); // Set target position
+                // Reset height PID completely to prevent oscillation
+                droneDynamics.heightPID.integral = 0;
+                droneDynamics.heightPID.prevError = 0;
             }
         }
 
