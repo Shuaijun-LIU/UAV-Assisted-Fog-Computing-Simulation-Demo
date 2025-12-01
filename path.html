@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation Env V27 - Algorithm Experiments</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #b0b0b0; }
+        #canvas-container { width: 100vw; height: 100vh; display: block; }
+
+        /* UI Panel */
+        #ui-panel {
+            position: absolute; top: 20px; left: 20px;
+            background: rgba(240, 240, 240, 0.95);
+            padding: 15px; width: 340px;
+            max-height: 90vh; overflow-y: auto;
+            border-radius: 2px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 5px solid #ff4400;
+            pointer-events: auto; user-select: none; z-index: 100;
+        }
+        #ui-panel::-webkit-scrollbar { width: 6px; }
+        #ui-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+        .ui-header { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #333; letter-spacing: 1px; }
+        .ui-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; color: #555; align-items: center; }
+        .ui-label { font-weight: 600; }
+        .ui-value { font-family: monospace; }
+        .status-red { color: #d32f2f; font-weight: bold; }
+        .status-green { color: #388e3c; font-weight: bold; }
+        .status-blue { color: #1976d2; font-weight: bold; }
+        .status-orange { color: #f57c00; font-weight: bold; }
+        .divider { border-bottom: 1px dashed #aaa; margin: 10px 0; }
+        .section-title { margin-top: 15px; margin-bottom: 5px; font-size: 11px; color: #777; font-weight: bold; text-transform: uppercase; }
+        .disclaimer { font-size: 9px; color: #888; font-style: italic; margin-bottom: 8px; line-height: 1.2; }
+
+        /* Buttons */
+        .btn-group { display: flex; gap: 5px; margin-top: 5px; }
+        .mode-btn {
+            flex: 1; padding: 8px; background: #ddd; color: #555;
+            border: none; border-radius: 4px; cursor: pointer;
+            font-family: 'Courier New', Courier, monospace; font-weight: bold; font-size: 10px;
+            transition: all 0.2s; text-align: center;
+        }
+        .mode-btn:hover { background: #ccc; }
+        .mode-btn.active { background: #ff4400; color: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
+        
+        /* Experiment Legend */
+        #legend-box {
+            margin-top: 10px; padding: 8px; background: #eee; border-radius: 4px; font-size: 10px; display: none;
+        }
+        .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
+        .legend-color { width: 12px; height: 3px; margin-right: 8px; }
+        
+        /* Floating Labels */
+        #labels-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 50; }
+        .floating-label {
+            position: absolute; background: #0d47a1; color: white;
+            padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;
+            transform: translate(-50%, -100%); white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: none;
+        }
+        .floating-label::after {
+            content: ''; position: absolute; top: 100%; left: 50%; margin-left: -4px;
+            border-width: 4px; border-style: solid; border-color: #0d47a1 transparent transparent transparent;
+        }
+
+        #instructions {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.9); background: rgba(0, 0, 0, 0.6);
+            padding: 12px 24px; border-radius: 30px; font-size: 13px;
+            pointer-events: none; text-align: center; border: 1px solid rgba(255,255,255,0.2); z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <div class="ui-header">SIMULATION_ENV_V27</div>
+        
+        <!-- Mode Status -->
+        <div class="ui-row">
+            <span class="ui-label">MODE:</span>
+            <span class="ui-value status-blue" id="mode-val">FREE FLIGHT</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">WIND:</span>
+            <span class="ui-value" id="wind-val">4.2 m/s NW</span>
+        </div>
+
+        <!-- Experiment Controls -->
+        <div class="divider"></div>
+        <div class="section-title">EXPERIMENTS</div>
+        
+        <div class="ui-label" style="margin-bottom: 5px;">1. ATC CONTROL (PID vs FEAR)</div>
+        <button id="btn-exp-atc" class="mode-btn" style="width:100%">START ATC COMPARE</button>
+        
+        <div class="ui-label" style="margin-top: 10px; margin-bottom: 5px;">2. PATH PLANNING (ACS-DS)</div>
+        <button id="btn-exp-path" class="mode-btn" style="width:100%">SHOW TRAJECTORIES</button>
+        
+        <button id="btn-free" class="mode-btn" style="width:100%; margin-top: 10px; background:#555; color:white;">RETURN TO FREE FLIGHT</button>
+
+        <!-- Legend Area -->
+        <div id="legend-box">
+            <div id="legend-title" style="font-weight:bold; margin-bottom:5px;">LEGEND</div>
+            <div id="legend-content"></div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="section-title">USER LOCATIONS</div>
+        <div id="user-list" style="font-size:10px; font-family:monospace; color:#333;"></div>
+    </div>
+
+    <div id="labels-container"></div>
+    <div id="instructions">Mode: Free Flight | WASD + Arrows to Fly</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+
+    <script>
+        // --- 1. Scene Setup ---
+        const clock = new THREE.Clock();
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xa0a0a0);
+        // Fog removed for clarity in experiments
+        
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
+        camera.position.set(0, 200, 300);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- 2. Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(150, 300, 100);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.left = -500; dirLight.shadow.camera.right = 500;
+        dirLight.shadow.camera.top = 500; dirLight.shadow.camera.bottom = -500;
+        scene.add(dirLight);
+
+        // --- 3. Environment Generation ---
+        const simplex = new SimplexNoise();
+        const MAP_SIZE = 1000;
+        const buildingColliders = [];
+        const userLocations = []; // Store vector3s
+
+        // Ground
+        const geometry = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 150, 150);
+        geometry.rotateX(-Math.PI / 2);
+        const positions = geometry.attributes.position;
+        const colors = [];
+        const cGround = new THREE.Color(0x666666);
+        const cRoad = new THREE.Color(0x333333);
+        const cSand = new THREE.Color(0x8d7e66);
+
+        function getTerrainHeight(x, z) {
+            const dist = Math.sqrt(x*x + z*z);
+            if (dist < 150) return 0; // City flat
+            let noise = simplex.noise2D(x*0.005, z*0.005) * 120;
+            noise += simplex.noise2D(x*0.015, z*0.015) * 45;
+            return Math.max(0, noise + 10);
+        }
+
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const z = positions.getZ(i);
+            const h = getTerrainHeight(x, z);
+            positions.setY(i, h);
+            
+            // Simple road logic for visuals
+            const isRoad = (Math.abs(x) < 60 && Math.abs(z) < 60 && (Math.abs(x%30)<4 || Math.abs(z%30)<4));
+            if (isRoad) colors.push(cRoad.r, cRoad.g, cRoad.b);
+            else if (h < 5 && dist(x,0,z,0,0,0) > 160) colors.push(cSand.r, cSand.g, cSand.b);
+            else colors.push(cGround.r, cGround.g, cGround.b);
+        }
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+        const ground = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true }));
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Buildings & Users
+        const boxGeo = new THREE.BoxGeometry(1,1,1); boxGeo.translate(0,0.5,0);
+        const bMat = new THREE.MeshStandardMaterial({color: 0xdddddd});
+        const bMesh = new THREE.InstancedMesh(boxGeo, bMat, 2000);
+        bMesh.castShadow = true; bMesh.receiveShadow = true;
+        const dummy = new THREE.Object3D();
+        let bIdx = 0;
+
+        // Generate City & Mountain Buildings
+        for(let i=0; i<1500; i++) {
+            const r = Math.sqrt(Math.random()) * 400;
+            const theta = Math.random() * Math.PI * 2;
+            const x = Math.cos(theta) * r;
+            const z = Math.sin(theta) * r;
+            
+            if (r < 30) continue; // Park
+            const h = getTerrainHeight(x, z);
+            
+            let bh = 0;
+            if (r < 150) bh = 10 + Math.random() * 50; // City
+            else if (h > 10 && h < 60) bh = 4 + Math.random() * 5; // Mountain
+            
+            if (bh > 0) {
+                dummy.position.set(x, h, z);
+                dummy.scale.set(5 + Math.random()*5, bh, 5 + Math.random()*5);
+                dummy.rotation.y = Math.random();
+                dummy.updateMatrix();
+                bMesh.setMatrixAt(bIdx++, dummy.matrix);
+                
+                // Add potential user loc
+                if (userLocations.length < 6 && Math.random() < 0.05) {
+                    userLocations.push(new THREE.Vector3(x, h + bh + 2, z));
+                }
+            }
+        }
+        scene.add(bMesh);
+
+        // Fallback Users
+        while(userLocations.length < 6) {
+            userLocations.push(new THREE.Vector3((Math.random()-0.5)*200, 60, (Math.random()-0.5)*200));
+        }
+
+        // --- 4. User Labels UI ---
+        const labelContainer = document.getElementById('labels-container');
+        const userListUi = document.getElementById('user-list');
+        const labelObjs = [];
+
+        userLocations.forEach((pos, i) => {
+            const id = `USER_${i+1}`;
+            const el = document.createElement('div');
+            el.className = 'floating-label'; el.innerText = id;
+            labelContainer.appendChild(el);
+            labelObjs.push({pos, el});
+            userListUi.innerHTML += `<div>${id}: [${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}, ${pos.z.toFixed(0)}]</div>`;
+        });
+
+        // --- 5. Drone & Particles ---
+        const droneGroup = new THREE.Group();
+        // Simple visual drone
+        const dBody = new THREE.Mesh(new THREE.BoxGeometry(2,0.5,1), new THREE.MeshBasicMaterial({color:0x111111}));
+        droneGroup.add(dBody);
+        droneGroup.add(new THREE.AxesHelper(3));
+        droneGroup.position.set(0, 100, 0);
+        scene.add(droneGroup);
+
+        // Wind Particles
+        const pGeo = new THREE.BufferGeometry();
+        const pPos = new Float32Array(3000);
+        for(let i=0; i<3000; i++) pPos[i] = (Math.random()-0.5)*400;
+        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+        const pMat = new THREE.PointsMaterial({color: 0x00ffff, size: 0.8, transparent:true, opacity:0.5});
+        const windSys = new THREE.Points(pGeo, pMat);
+        scene.add(windSys);
+
+        // --- 6. Experiment System ---
+        let currentMode = 'FREE'; // FREE, ATC, PATH
+        const expGroup = new THREE.Group(); // Holds experiment visuals (trails, ghost drones)
+        scene.add(expGroup);
+
+        // Variables for experiments
+        let expTime = 0;
+        let expDrones = []; // { mesh, path, color, currentIdx, progress }
+        let expPaths = [];
+
+        // UI Refs
+        const legendBox = document.getElementById('legend-box');
+        const legendContent = document.getElementById('legend-content');
+        const instr = document.getElementById('instructions');
+        const modeVal = document.getElementById('mode-val');
+
+        function clearExperiment() {
+            expGroup.clear();
+            expDrones = [];
+            expPaths = [];
+            legendBox.style.display = 'none';
+            droneGroup.visible = true; // Show main drone in Free mode
+        }
+
+        // --- EXPERIMENT 1: ATC COMPARE ---
+        function startATCExperiment() {
+            clearExperiment();
+            currentMode = 'ATC';
+            modeVal.innerText = "EXP: ATC (PID vs FEAR)";
+            droneGroup.visible = false; // Hide player drone
+            instr.innerText = "Observing ATC Performance in Turbulence...";
+            
+            // Setup Legend
+            legendBox.style.display = 'block';
+            legendContent.innerHTML = `
+                <div class="legend-item"><div class="legend-color" style="background:#0088ff"></div>FEAR-PID (Stable)</div>
+                <div class="legend-item"><div class="legend-color" style="background:#ff0000"></div>Classic PID (Oscillating)</div>
+            `;
+
+            // Create Path (Visit all users)
+            const pathPoints = [new THREE.Vector3(0, 120, 0), ...userLocations];
+            
+            // Create 2 Ghost Drones
+            createGhostDrone(0x0088ff, "FEAR-PID", pathPoints, 'FEAR');
+            createGhostDrone(0xff0000, "PID", pathPoints, 'PID');
+            
+            expTime = 0;
+        }
+
+        function createGhostDrone(color, label, points, type) {
+            const g = new THREE.Group();
+            const mesh = new THREE.Mesh(new THREE.ConeGeometry(1, 2, 4), new THREE.MeshBasicMaterial({color: color}));
+            mesh.rotation.x = Math.PI/2; 
+            g.add(mesh);
+            
+            // Trail Line
+            const maxTrail = 500;
+            const trailGeo = new THREE.BufferGeometry();
+            const trailPos = new Float32Array(maxTrail * 3);
+            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
+            trailGeo.setDrawRange(0, 0);
+            const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({color: color, linewidth: 2}));
+            
+            expGroup.add(g);
+            expGroup.add(trail);
+
+            expDrones.push({
+                obj: g,
+                points: points,
+                type: type,
+                idx: 0,
+                t: 0,
+                trail: trail,
+                trailIdx: 0,
+                trailArr: trailPos
+            });
+        }
+
+        function updateATC(dt) {
+            const windStrength = 0.5; // Disturbance amount
+
+            expDrones.forEach(d => {
+                const p1 = d.points[d.idx];
+                const p2 = d.points[(d.idx + 1) % d.points.length];
+                
+                // Move logic
+                const dist = p1.distanceTo(p2);
+                const speed = 30; // m/s
+                const travelTime = dist / speed;
+                
+                d.t += dt;
+                let alpha = d.t / travelTime;
+                
+                if (alpha >= 1.0) {
+                    // Arrived, wait 0.5s? Simplified: just next point
+                    d.idx = (d.idx + 1) % d.points.length;
+                    d.t = 0;
+                    alpha = 0;
+                }
+
+                // Base Position
+                const targetPos = new THREE.Vector3().lerpVectors(p1, p2, alpha);
+
+                // Add Physics Noise based on Algorithm
+                if (d.type === 'PID') {
+                    // Classic PID: Oscillates and gets pushed by wind
+                    const noise = Math.sin(expTime * 5) * 5 + Math.cos(expTime * 3) * 5;
+                    const windDrift = Math.sin(expTime * 0.5) * 10;
+                    targetPos.y += noise * 0.5; // Altitude wobbles
+                    targetPos.x += windDrift + Math.sin(expTime * 10)*2; // Path overshoots
+                } else {
+                    // FEAR-PID: Rock solid, tiny micro-corrections
+                    const micro = Math.sin(expTime * 20) * 0.2;
+                    targetPos.y += micro; 
+                    // No drift
+                }
+
+                d.obj.position.copy(targetPos);
+                d.obj.lookAt(p2);
+
+                // Update Trail
+                if (d.trailIdx < 500) {
+                    d.trailArr[d.trailIdx*3] = targetPos.x;
+                    d.trailArr[d.trailIdx*3+1] = targetPos.y;
+                    d.trailArr[d.trailIdx*3+2] = targetPos.z;
+                    d.trailIdx++;
+                    d.trail.geometry.setDrawRange(0, d.trailIdx);
+                    d.trail.geometry.attributes.position.needsUpdate = true;
+                }
+            });
+            expTime += dt;
+        }
+
+        // --- EXPERIMENT 2: PATH PLANNING ---
+        function startPathExperiment() {
+            clearExperiment();
+            currentMode = 'PATH';
+            modeVal.innerText = "EXP: PLANNING (ACS-DS)";
+            droneGroup.visible = false;
+            instr.innerText = "Comparing Path Planning Algorithms...";
+
+            legendBox.style.display = 'block';
+            legendContent.innerHTML = `
+                <div class="legend-item"><div class="legend-color" style="background:#ffff00"></div>ACS (Baseline)</div>
+                <div class="legend-item"><div class="legend-color" style="background:#00ff00"></div>TD3 (RL)</div>
+                <div class="legend-item"><div class="legend-color" style="background:#0088ff"></div>ACS-DS (Proposed)</div>
+            `;
+
+            const points = [new THREE.Vector3(0, 100, 0), ...userLocations, new THREE.Vector3(0, 100, 0)];
+            
+            // Draw 3 Static Paths
+            drawPathLine(points, 0xffff00, 'ACS');    // Yellow: Jagged
+            drawPathLine(points, 0x00ff00, 'TD3');    // Green: Smooth
+            drawPathLine(points, 0x0088ff, 'ACS-DS'); // Blue: Optimal
+        }
+
+        function drawPathLine(waypoints, color, algType) {
+            // Generate curve points based on algorithm type
+            const curvePoints = [];
+            
+            if (algType === 'ACS') {
+                // Jagged, hits obstacles (simulated by random deviation)
+                for(let i=0; i<waypoints.length-1; i++) {
+                    curvePoints.push(waypoints[i]);
+                    // Add jagged waypoint
+                    const mid = new THREE.Vector3().lerpVectors(waypoints[i], waypoints[i+1], 0.5);
+                    mid.y -= 20; // Dips down dangerously
+                    mid.x += (Math.random()-0.5)*50;
+                    curvePoints.push(mid);
+                }
+                curvePoints.push(waypoints[waypoints.length-1]);
+            } 
+            else if (algType === 'TD3') {
+                // Smooth spline
+                const curve = new THREE.CatmullRomCurve3(waypoints);
+                curvePoints.push(...curve.getPoints(100));
+            }
+            else {
+                // ACS-DS: Smooth + Safe (Higher altitude to avoid buildings)
+                const safeWaypoints = waypoints.map(p => new THREE.Vector3(p.x, Math.max(p.y, 80), p.z));
+                const curve = new THREE.CatmullRomCurve3(safeWaypoints);
+                // "Decoupling" logic visual: cleaner curves
+                curve.tension = 0.2; 
+                curvePoints.push(...curve.getPoints(100));
+            }
+
+            const geo = new THREE.BufferGeometry().setFromPoints(curvePoints);
+            const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
+            const line = new THREE.Line(geo, mat);
+            expGroup.add(line);
+            
+            // Add markers
+            waypoints.forEach(p => {
+                const m = new THREE.Mesh(new THREE.SphereGeometry(2), new THREE.MeshBasicMaterial({color:color}));
+                m.position.copy(p);
+                expGroup.add(m);
+            });
+        }
+
+        // --- Interaction ---
+        document.getElementById('btn-exp-atc').onclick = startATCExperiment;
+        document.getElementById('btn-exp-path').onclick = startPathExperiment;
+        document.getElementById('btn-free').onclick = () => {
+            clearExperiment();
+            currentMode = 'FREE';
+            modeVal.innerText = "FREE FLIGHT";
+            instr.innerText = "WASD + Arrows to Fly";
+        };
+
+        // --- Controls (Free Flight) ---
+        const keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+        window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        // Simple Physics for Free Flight
+        let velocity = new THREE.Vector3();
+        function updateFreeFlight(dt) {
+            let turn = 0;
+            if(keys.ArrowLeft) { droneGroup.rotation.y += 2*dt; turn=1; }
+            if(keys.ArrowRight) { droneGroup.rotation.y -= 2*dt; turn=1; }
+            
+            const yaw = droneGroup.rotation.y;
+            const fwd = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw); // Corrected Z+ forward for this simpler model if needed, or Z-
+            // Let's stick to standard ThreeJS: Fwd is usually -Z. Let's try -Z.
+            const realFwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+            const right = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
+
+            let acc = new THREE.Vector3();
+            if(keys.w) acc.add(realFwd); if(keys.s) acc.sub(realFwd);
+            if(keys.a) acc.sub(right); if(keys.d) acc.add(right);
+            if(acc.lengthSq()>0) acc.normalize().multiplyScalar(20);
+
+            let vAcc = 0;
+            if(keys.ArrowUp) vAcc = 10; if(keys.ArrowDown) vAcc = -10;
+
+            velocity.x += acc.x * dt; 
+            velocity.z += acc.z * dt;
+            velocity.y += vAcc * dt;
+            velocity.multiplyScalar(0.95); // Drag
+
+            droneGroup.position.add(velocity.clone().multiplyScalar(dt));
+            
+            // Floor
+            if(droneGroup.position.y < 2) { droneGroup.position.y=2; velocity.y=0; }
+            
+            // Tilt visual
+            const localVel = velocity.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -yaw);
+            droneGroup.rotation.x = -localVel.z * 0.05;
+            droneGroup.rotation.z = -localVel.x * 0.05;
+            
+            controls.target.copy(droneGroup.position);
+        }
+
+        // --- Main Loop ---
+        function dist(x1,y1,z1,x2,y2,z2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2); }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = clock.getDelta();
+
+            if (currentMode === 'FREE') {
+                updateFreeFlight(dt);
+            } else if (currentMode === 'ATC') {
+                updateATC(dt);
+                // Rotate camera slowly around center
+                const r = 400;
+                camera.position.x = Math.sin(expTime*0.1) * r;
+                camera.position.z = Math.cos(expTime*0.1) * r;
+                camera.lookAt(0, 50, 0);
+            } else if (currentMode === 'PATH') {
+                // Static view logic or slow orbit
+                const r = 500;
+                camera.position.x = Math.sin(Date.now()*0.0002) * r;
+                camera.position.z = Math.cos(Date.now()*0.0002) * r;
+                camera.lookAt(0, 50, 0);
+            }
+
+            // Labels
+            labelObjs.forEach(o => {
+                const p = o.pos.clone(); p.project(camera);
+                const x = (p.x*.5+.5)*window.innerWidth;
+                const y = (p.y*-.5+.5)*window.innerHeight;
+                if(p.z<1 && x>0 && x<window.innerWidth && y>0 && y<window.innerHeight) {
+                    o.el.style.display = 'block';
+                    o.el.style.transform = `translate(-50%,-100%) translate(${x}px,${y}px)`;
+                } else o.el.style.display = 'none';
+            });
+
+            // Wind Particles
+            const pArr = windSys.geometry.attributes.position.array;
+            for(let i=0; i<3000; i++) {
+                pArr[i*3] += 1; // Simple wind x
+                if(pArr[i*3] > 200) pArr[i*3] -= 400;
+            }
+            windSys.geometry.attributes.position.needsUpdate = true;
+
+            // Use controls if in Free mode
+            if(currentMode === 'FREE') controls.update();
+            
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
