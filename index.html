@@ -553,6 +553,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+    <!-- html2canvas for capturing DOM elements -->
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
     <script>
         // --- 0. Data Management System ---
@@ -1395,12 +1397,29 @@
                     l.el.style.display = 'block';
                 }
             });
-            // Render and capture
+            // Render first to ensure WebGL buffer is up to date
             renderer.render(scene, camera);
-            const l=document.createElement('a'); 
-            l.download='sim.png'; 
-            l.href=renderer.domElement.toDataURL(); 
-            l.click(); 
+            
+            // Use html2canvas to capture the entire body, which includes canvas + UI + labels
+            html2canvas(document.body, {
+                backgroundColor: null, // Use existing background
+                useCORS: true, // Allow cross-origin images if any
+                logging: false,
+                ignoreElements: (element) => {
+                    // Optional: ignore elements you don't want in the screenshot
+                    // e.g., ignore the welcome popup if it's hidden but technically there
+                    if (element.id === 'welcome-popup' || element.id === 'warning-msg') return true;
+                    return false;
+                }
+            }).then(canvas => {
+                const l = document.createElement('a');
+                l.download = 'sim_full_snapshot.png';
+                l.href = canvas.toDataURL();
+                l.click();
+            }).catch(err => {
+                console.error("Snapshot failed:", err);
+                alert("Snapshot failed to capture UI overlay.");
+            });
         });
 
         // --- Data Management Handlers ---
