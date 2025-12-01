@@ -171,18 +171,20 @@
 
         .floating-label {
             position: absolute;
-            background: #0d47a1;
+            background: #ff4400;
             color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 14px;
             font-weight: bold;
             pointer-events: none;
             transform: translate(-50%, -100%);
             white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.5);
             transition: opacity 0.2s;
-            display: none; 
+            display: none;
+            border: 2px solid #ffffff;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
         
         .floating-label::after {
@@ -190,10 +192,10 @@
             position: absolute;
             top: 100%;
             left: 50%;
-            margin-left: -4px;
-            border-width: 4px;
+            margin-left: -5px;
+            border-width: 5px;
             border-style: solid;
-            border-color: #0d47a1 transparent transparent transparent;
+            border-color: #ff4400 transparent transparent transparent;
         }
 
         #instructions {
@@ -245,9 +247,182 @@
             font-size: 9px;
             color: #666;
         }
+
+        /* Welcome Popup */
+        #welcome-popup {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #welcome-popup.hidden {
+            display: none;
+        }
+
+        .welcome-content {
+            background: rgba(240, 240, 240, 0.98);
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 700px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border-left: 5px solid #ff4400;
+        }
+
+        .welcome-content h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 20px;
+            border-bottom: 2px solid #ff4400;
+            padding-bottom: 10px;
+        }
+
+        .welcome-content p {
+            margin: 16px 0;
+            line-height: 1.6;
+            color: #555;
+            font-size: 13px;
+        }
+
+        .welcome-content ul {
+            margin: 16px 0;
+            padding-left: 25px;
+            color: #555;
+            font-size: 12px;
+        }
+
+        .welcome-content li {
+            margin: 8px 0;
+            line-height: 1.5;
+        }
+
+        .welcome-content strong {
+            color: #333;
+        }
+
+        .welcome-content .controls-info {
+            background: rgba(255, 68, 0, 0.1);
+            padding: 12px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-size: 12px;
+        }
+
+        .welcome-content .controls-info strong {
+            display: block;
+            margin-bottom: 6px;
+            color: #ff4400;
+        }
+
+        #welcome-close {
+            width: 100%;
+            padding: 12px;
+            margin-top: 20px;
+            background: #ff4400;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        #welcome-close:hover {
+            background: #cc3300;
+        }
+
+        #welcome-close:active {
+            background: #992200;
+        }
+
+        #welcome-checkbox {
+            margin-top: 15px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        #welcome-checkbox input {
+            margin-right: 6px;
+        }
     </style>
 </head>
 <body>
+
+    <!-- Welcome Popup -->
+    <div id="welcome-popup">
+        <div class="welcome-content">
+            <h2>Welcome to UAV-Assisted Fog Computing Simulation Demo</h2>
+            
+            <p>
+                This is an <strong>interactive mini demonstration</strong> created for the paper 
+                <strong>"Energy-Aware Holistic Optimization in UAV-Assisted Fog Computing: Attitude, Trajectory, and Task Assignment"</strong>, 
+                designed to help reviewers quickly understand our simulation environment when submitting to the <strong>Computer Networks</strong> journal.
+            </p>
+
+            <p>
+                <strong>Background:</strong> This demo is built with <strong>Three.js</strong> and serves as a simplified, 
+                interactive version of our complete simulation system implemented in <strong>NVIDIA Isaac Gym Sim</strong>. 
+                To facilitate browser-based demonstration, we have simplified the following aspects:
+            </p>
+
+            <ul>
+                <li><strong>Motion Control:</strong> Uses a simplified FEAR-PID attitude control algorithm</li>
+                <li><strong>Environmental Variables:</strong> Only wind field effects on flight are retained</li>
+                <li><strong>Communication Model:</strong> Simplified signal propagation and occlusion detection</li>
+                <li><strong>Task System:</strong> Simplified task assignment and user interaction</li>
+            </ul>
+
+            <p>
+                Despite these simplifications, this demo still reflects the <strong>core task scenarios and key performance metrics</strong> 
+                we focus on in the paper.
+            </p>
+
+            <div class="controls-info">
+                <strong>Quick Start:</strong>
+                <table style="width: 100%; margin-top: 8px; border-collapse: collapse;">
+                    <tr>
+                        <td style="padding: 4px 8px;"><strong>W/S:</strong></td>
+                        <td style="padding: 4px 8px;">Pitch (forward/backward)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 8px;"><strong>A/D:</strong></td>
+                        <td style="padding: 4px 8px;">Roll (left/right)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 8px;"><strong>↑/↓:</strong></td>
+                        <td style="padding: 4px 8px;">Altitude</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 4px 8px;"><strong>←/→:</strong></td>
+                        <td style="padding: 4px 8px;">Yaw rotation</td>
+                    </tr>
+                </table>
+                <div style="margin-top: 8px; font-size: 11px;">
+                    Switch between <strong>Simple</strong> and <strong>Control (FEAR-PID)</strong> modes using buttons in the top-left panel.
+                </div>
+            </div>
+
+            <div id="welcome-checkbox">
+                <label>
+                    <input type="checkbox" id="dont-show-again"> Don't show this message again
+                </label>
+            </div>
+
+            <button id="welcome-close">Got it, let's start!</button>
+        </div>
+    </div>
 
     <div id="canvas-container"></div>
 
@@ -349,8 +524,8 @@
 
         <div class="ui-label" style="margin-top: 10px; margin-bottom: 5px;">CAMERA</div>
         <div class="btn-group">
-            <button id="btn-orbit" class="mode-btn active">ORBIT</button>
-            <button id="btn-fpv" class="mode-btn">FPV</button>
+            <button id="btn-orbit" class="mode-btn">ORBIT</button>
+            <button id="btn-fpv" class="mode-btn active">FPV</button>
         </div>
         
         <div class="ui-label" style="margin-top: 10px; margin-bottom: 5px;">DATA MANAGEMENT</div>
@@ -1124,7 +1299,7 @@
         controls.dampingFactor = 0.05;
 
         // --- UI Logic ---
-        let viewMode = 'ORBIT'; 
+        let viewMode = 'FPV'; 
         const btnOrbit = document.getElementById('btn-orbit');
         const btnFPV = document.getElementById('btn-fpv');
         const btnSnap = document.getElementById('btn-snapshot');
@@ -1145,6 +1320,8 @@
             if (mode === 'ORBIT') { btnOrbit.classList.add('active'); btnFPV.classList.remove('active'); controls.enabled = true; }
             else { btnOrbit.classList.remove('active'); btnFPV.classList.add('active'); controls.enabled = false; }
         }
+        // Initialize view mode to FPV
+        setViewMode('FPV');
         function setControlMode(mode) {
             controlMode = mode;
             // Display FEAR-PID when in CONTROL mode, otherwise show mode name
@@ -1172,7 +1349,23 @@
         btnFPV.addEventListener('click', () => setViewMode('FPV'));
         btnSimple.addEventListener('click', () => setControlMode('SIMPLE'));
         btnPID.addEventListener('click', () => setControlMode('CONTROL')); 
-        btnSnap.addEventListener('click', () => { renderer.render(scene, camera); const l=document.createElement('a'); l.download='sim.png'; l.href=renderer.domElement.toDataURL(); l.click(); });
+        btnSnap.addEventListener('click', () => { 
+            // Ensure all user labels are visible for snapshot
+            labels.forEach(l => {
+                const p = l.pos.clone(); p.project(camera);
+                const x = (p.x*.5+.5)*window.innerWidth; 
+                const y = (p.y*-.5+.5)*window.innerHeight;
+                if(p.z<1 && x>0 && x<window.innerWidth && y>0 && y<window.innerHeight){
+                    l.el.style.display = 'block';
+                }
+            });
+            // Render and capture
+            renderer.render(scene, camera);
+            const l=document.createElement('a'); 
+            l.download='sim.png'; 
+            l.href=renderer.domElement.toDataURL(); 
+            l.click(); 
+        });
 
         // --- Data Management Handlers ---
         btnExport.addEventListener('click', () => {
@@ -1556,6 +1749,37 @@
             camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
         });
+
+        // Welcome Popup Logic
+        const WELCOME_STORAGE_KEY = 'drone_sim_welcome_shown';
+        const welcomePopup = document.getElementById('welcome-popup');
+        const welcomeClose = document.getElementById('welcome-close');
+        const dontShowAgain = document.getElementById('dont-show-again');
+
+        // Check if welcome should be shown
+        const welcomeShown = localStorage.getItem(WELCOME_STORAGE_KEY);
+        if (welcomeShown === 'true') {
+            welcomePopup.classList.add('hidden');
+        }
+
+        // Close welcome popup
+        welcomeClose.addEventListener('click', () => {
+            if (dontShowAgain.checked) {
+                localStorage.setItem(WELCOME_STORAGE_KEY, 'true');
+            }
+            welcomePopup.classList.add('hidden');
+        });
+
+        // Close on Escape key
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !welcomePopup.classList.contains('hidden')) {
+                if (dontShowAgain.checked) {
+                    localStorage.setItem(WELCOME_STORAGE_KEY, 'true');
+                }
+                welcomePopup.classList.add('hidden');
+            }
+        });
+
         animate();
     </script>
 </body>
