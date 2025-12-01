@@ -478,6 +478,10 @@
         <div class="disclaimer">
             <span class="legend-dot"></span> Cyan particles visualize wind flow
         </div>
+        <div class="ui-row" style="margin-top: 5px;">
+            <span class="ui-label">FOG:</span>
+            <input type="range" id="fog-density-control" min="0" max="0.02" step="0.0005" value="0.002" style="width: 70px;">
+        </div>
 
         <!-- Physics Config -->
         <div class="section-title">PHYSICS CONFIG</div>
@@ -610,6 +614,7 @@
         const scene = new THREE.Scene();
         const fogColor = 0xa0a0a0;
         scene.background = new THREE.Color(fogColor);
+        scene.fog = new THREE.FogExp2(fogColor, 0.002);
 
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000); 
         camera.position.set(0, 150, 200); 
@@ -1332,6 +1337,7 @@
         const batBar = document.getElementById('battery-bar');
         const motorVal = document.getElementById('motor-val');
         const attVal = document.getElementById('att-val');
+        const fogDensityControl = document.getElementById('fog-density-control');
 
         function setViewMode(mode) {
             viewMode = mode;
@@ -1371,6 +1377,12 @@
 
         btnOrbit.addEventListener('click', () => setViewMode('ORBIT'));
         btnFPV.addEventListener('click', () => setViewMode('FPV'));
+        
+        // Fog Control
+        fogDensityControl.addEventListener('input', (e) => {
+            scene.fog.density = parseFloat(e.target.value);
+        });
+
         btnSimple.addEventListener('click', () => setControlMode('SIMPLE'));
         btnPID.addEventListener('click', () => setControlMode('CONTROL')); 
         btnSnap.addEventListener('click', () => { 
