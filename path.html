@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simulation Env V27 - Algorithm Experiments</title>
+    <title>Simulation Env V30 - Experiments & Persistence</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Courier New', Courier, monospace; background-color: #b0b0b0; }
         #canvas-container { width: 100vw; height: 100vh; display: block; }
@@ -22,14 +22,11 @@
         #ui-panel::-webkit-scrollbar { width: 6px; }
         #ui-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
 
-        .ui-header { font-weight: bold; font-size: 16px; margin-bottom: 10px; color: #333; letter-spacing: 1px; }
-        .ui-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; color: #555; align-items: center; }
+        .ui-header { font-weight: bold; font-size: 16px; margin-bottom: 15px; color: #333; letter-spacing: 1px; }
+        .ui-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 11px; color: #555; align-items: center; }
         .ui-label { font-weight: 600; }
         .ui-value { font-family: monospace; }
-        .status-red { color: #d32f2f; font-weight: bold; }
-        .status-green { color: #388e3c; font-weight: bold; }
         .status-blue { color: #1976d2; font-weight: bold; }
-        .status-orange { color: #f57c00; font-weight: bold; }
         .divider { border-bottom: 1px dashed #aaa; margin: 10px 0; }
         .section-title { margin-top: 15px; margin-bottom: 5px; font-size: 11px; color: #777; font-weight: bold; text-transform: uppercase; }
         .disclaimer { font-size: 9px; color: #888; font-style: italic; margin-bottom: 8px; line-height: 1.2; }
@@ -45,24 +42,29 @@
         .mode-btn:hover { background: #ccc; }
         .mode-btn.active { background: #ff4400; color: white; box-shadow: inset 0 2px 4px rgba(0,0,0,0.2); }
         
-        /* Experiment Legend */
-        #legend-box {
-            margin-top: 10px; padding: 8px; background: #eee; border-radius: 4px; font-size: 10px; display: none;
-        }
+        #btn-snapshot { width: 100%; margin-top: 8px; background: #333; color: #fff; }
+        #btn-export { background: #00796b; color: white; }
+        #btn-import { background: #0288d1; color: white; }
+        #btn-reset { background: #d32f2f; color: white; margin-top: 5px; width: 100%; }
+        #file-input { display: none; }
+
+        /* Legend */
+        #legend-box { margin-top: 10px; padding: 8px; background: #eee; border-radius: 4px; font-size: 10px; display: none; }
         .legend-item { display: flex; align-items: center; margin-bottom: 4px; }
-        .legend-color { width: 12px; height: 3px; margin-right: 8px; }
-        
-        /* Floating Labels */
+        .legend-color { width: 12px; height: 3px; margin-right: 8px; border-radius: 2px; }
+        .legend-dot { display: inline-block; width: 8px; height: 8px; background-color: #00ffff; border-radius: 50%; margin-right: 5px; }
+
+        /* Labels */
         #labels-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; overflow: hidden; z-index: 50; }
         .floating-label {
-            position: absolute; background: #0d47a1; color: white;
-            padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold;
+            position: absolute; background: #ff4400; color: white;
+            padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;
             transform: translate(-50%, -100%); white-space: nowrap;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: none; border: 1px solid white;
         }
         .floating-label::after {
             content: ''; position: absolute; top: 100%; left: 50%; margin-left: -4px;
-            border-width: 4px; border-style: solid; border-color: #0d47a1 transparent transparent transparent;
+            border-width: 4px; border-style: solid; border-color: #ff4400 transparent transparent transparent;
         }
 
         #instructions {
@@ -71,16 +73,46 @@
             padding: 12px 24px; border-radius: 30px; font-size: 13px;
             pointer-events: none; text-align: center; border: 1px solid rgba(255,255,255,0.2); z-index: 100;
         }
+
+        /* Welcome Popup */
+        #welcome-popup { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        #welcome-popup.hidden { display: none; }
+        .welcome-content { background: #f0f0f0; padding: 30px; border-radius: 8px; max-width: 600px; border-left: 5px solid #ff4400; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .welcome-content h2 { margin-top: 0; color: #333; border-bottom: 2px solid #ff4400; padding-bottom: 10px; }
+        .welcome-content p, .welcome-content li { font-size: 13px; line-height: 1.5; color: #555; }
+        #welcome-close { width: 100%; padding: 12px; margin-top: 20px; background: #ff4400; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        #welcome-close:hover { background: #cc3300; }
+
+        .user-coord-row { font-size: 10px; color: #333; margin-bottom: 3px; font-family: monospace; display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
+    <!-- Welcome Popup -->
+    <div id="welcome-popup">
+        <div class="welcome-content">
+            <h2>UAV Simulation Environment V30</h2>
+            <p><strong>Comprehensive Demo for Paper Submission</strong></p>
+            <p>This environment simulates UAV flight in a complex urban-mountain scenario, featuring:</p>
+            <ul>
+                <li><strong>Visual Experiments:</strong> Compare ATC algorithms (PID vs FEAR) and Path Planning (ACS vs ACS-DS).</li>
+                <li><strong>Data Persistence:</strong> Save your map layout and flight paths to JSON.</li>
+                <li><strong>Signal Analysis:</strong> Real-time Line-of-Sight (LOS) and signal strength calculation.</li>
+            </ul>
+            <div style="background:rgba(255,68,0,0.1); padding:10px; border-radius:4px; font-size:12px;">
+                <strong>Controls:</strong><br>
+                WASD: Pitch/Roll | Arrows: Altitude/Yaw<br>
+                Mouse: Orbit Camera (in Static View)
+            </div>
+            <button id="welcome-close">Start Simulation</button>
+        </div>
+    </div>
+
     <div id="canvas-container"></div>
 
     <div id="ui-panel">
-        <div class="ui-header">SIMULATION_ENV_V27</div>
+        <div class="ui-header">SIMULATION_ENV_V30</div>
         
-        <!-- Mode Status -->
         <div class="ui-row">
             <span class="ui-label">MODE:</span>
             <span class="ui-value status-blue" id="mode-val">FREE FLIGHT</span>
@@ -89,96 +121,135 @@
             <span class="ui-label">WIND:</span>
             <span class="ui-value" id="wind-val">4.2 m/s NW</span>
         </div>
+        <div class="ui-row">
+            <span class="ui-label">OBSTACLES:</span>
+            <span class="ui-value" id="obs-count">...</span>
+        </div>
+        <div class="disclaimer"><span class="legend-dot"></span> Cyan particles: Wind Flow</div>
 
-        <!-- Experiment Controls -->
         <div class="divider"></div>
-        <div class="section-title">EXPERIMENTS</div>
         
-        <div class="ui-label" style="margin-bottom: 5px;">1. ATC CONTROL (PID vs FEAR)</div>
-        <button id="btn-exp-atc" class="mode-btn" style="width:100%">START ATC COMPARE</button>
+        <!-- EXP 1 -->
+        <div class="section-title">① ATC CONTROL (PID vs FEAR)</div>
+        <div class="ui-label" style="font-size: 9px; color:#555; margin-bottom:4px;">PID(Red) vs FEAR-PID(Blue)</div>
+        <div class="btn-group">
+            <button id="btn-atc-fly" class="mode-btn">FLY (FPV)</button>
+            <button id="btn-atc-static" class="mode-btn">RESULT (STATIC)</button>
+        </div>
         
-        <div class="ui-label" style="margin-top: 10px; margin-bottom: 5px;">2. PATH PLANNING (ACS-DS)</div>
-        <button id="btn-exp-path" class="mode-btn" style="width:100%">SHOW TRAJECTORIES</button>
+        <!-- EXP 2 -->
+        <div class="section-title">② PATH PLANNING</div>
+        <div class="ui-label" style="font-size: 9px; color:#555; margin-bottom:4px;">ACS(Yell) / TD3(Grn) / ACS-DS(Blue)</div>
+        <div class="btn-group">
+            <button id="btn-path-fly" class="mode-btn">FLY (FPV)</button>
+            <button id="btn-path-static" class="mode-btn">RESULT (STATIC)</button>
+        </div>
         
-        <button id="btn-free" class="mode-btn" style="width:100%; margin-top: 10px; background:#555; color:white;">RETURN TO FREE FLIGHT</button>
+        <div class="divider"></div>
+        <button id="btn-free" class="mode-btn" style="width:100%; background:#555; color:white;">RETURN TO FREE FLIGHT</button>
 
-        <!-- Legend Area -->
         <div id="legend-box">
             <div id="legend-title" style="font-weight:bold; margin-bottom:5px;">LEGEND</div>
             <div id="legend-content"></div>
         </div>
 
         <div class="divider"></div>
-        <div class="section-title">USER LOCATIONS</div>
-        <div id="user-list" style="font-size:10px; font-family:monospace; color:#333;"></div>
+        <div class="section-title">DATA MANAGEMENT</div>
+        <div class="btn-group">
+            <button id="btn-export" class="mode-btn">EXPORT DATA</button>
+            <button id="btn-import" class="mode-btn">IMPORT DATA</button>
+        </div>
+        <button id="btn-snapshot" class="mode-btn">SNAPSHOT (PNG)</button>
+        <button id="btn-reset" class="mode-btn">RESET & NEW MAP</button>
+        <input type="file" id="file-input" accept=".json">
+
+        <div class="divider"></div>
+        <div class="section-title">USER LOCATIONS / SIGNAL</div>
+        <div id="user-list"></div>
     </div>
 
     <div id="labels-container"></div>
-    <div id="instructions">Mode: Free Flight | WASD + Arrows to Fly</div>
+    <div id="instructions">Free Flight: WASD + Arrows</div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
 
     <script>
-        // --- 1. Scene Setup ---
+    try {
+        // --- 0. Data Persistence System ---
+        let currentSeed = Math.random();
+        function seedRandom(seed) { currentSeed = seed; }
+        function random() {
+            let t = currentSeed += 0x6D2B79F5;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        }
+
+        let worldState = {
+            seed: Date.now(),
+            cityBuildings: [],
+            mountainBuildings: [],
+            buildingColliders: [], // obstacles
+            cabinPositions: [],
+            finalUsers: []
+        };
+        const STORAGE_KEY = 'drone_sim_v30_data';
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        let isLoaded = false;
+
+        if (savedData) {
+            try {
+                const p = JSON.parse(savedData);
+                if (p.seed && p.finalUsers) { worldState = p; isLoaded = true; console.log("Loaded saved map."); }
+            } catch(e) { console.error("Load failed", e); }
+        }
+        if (!isLoaded) worldState.seed = Math.random() * 100000;
+        seedRandom(worldState.seed);
+
+        // --- 1. Scene ---
         const clock = new THREE.Clock();
         const scene = new THREE.Scene();
         scene.background = new THREE.Color(0xa0a0a0);
-        // Fog removed for clarity in experiments
-        
         const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.1, 5000);
         camera.position.set(0, 200, 300);
-
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
         document.getElementById('canvas-container').appendChild(renderer.domElement);
 
-        // --- 2. Lighting ---
-        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
-        scene.add(hemiLight);
+        // --- 2. Environment ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6); scene.add(hemiLight);
         const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
-        dirLight.position.set(150, 300, 100);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.width = 2048;
-        dirLight.shadow.mapSize.height = 2048;
+        dirLight.position.set(150, 300, 100); dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 2048; dirLight.shadow.mapSize.height = 2048;
         dirLight.shadow.camera.left = -500; dirLight.shadow.camera.right = 500;
         dirLight.shadow.camera.top = 500; dirLight.shadow.camera.bottom = -500;
         scene.add(dirLight);
 
-        // --- 3. Environment Generation ---
-        const simplex = new SimplexNoise();
-        const MAP_SIZE = 1000;
-        const buildingColliders = [];
-        const userLocations = []; // Store vector3s
-
+        const simplex = new SimplexNoise(random); // Seeded simplex
+        
         // Ground
-        const geometry = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE, 150, 150);
-        geometry.rotateX(-Math.PI / 2);
-        const positions = geometry.attributes.position;
-        const colors = [];
-        const cGround = new THREE.Color(0x666666);
-        const cRoad = new THREE.Color(0x333333);
-        const cSand = new THREE.Color(0x8d7e66);
+        const geometry = new THREE.PlaneGeometry(1000, 1000, 150, 150); geometry.rotateX(-Math.PI / 2);
+        const positions = geometry.attributes.position; const colors = [];
+        const cGround = new THREE.Color(0x666666); const cRoad = new THREE.Color(0x333333); const cSand = new THREE.Color(0x8d7e66);
 
         function getTerrainHeight(x, z) {
-            const dist = Math.sqrt(x*x + z*z);
-            if (dist < 150) return 0; // City flat
-            let noise = simplex.noise2D(x*0.005, z*0.005) * 120;
-            noise += simplex.noise2D(x*0.015, z*0.015) * 45;
-            return Math.max(0, noise + 10);
+            const d = Math.sqrt(x*x + z*z);
+            if (d < 150) return 0; 
+            let n = simplex.noise2D(x*0.005, z*0.005) * 120; n += simplex.noise2D(x*0.015, z*0.015) * 45;
+            return Math.max(0, n + 10);
         }
+        function dist(x1,y1,z1,x2,y2,z2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2); }
+        Number.prototype.f = function(n) { return this.toFixed(n); };
 
         for (let i = 0; i < positions.count; i++) {
-            const x = positions.getX(i);
-            const z = positions.getZ(i);
-            const h = getTerrainHeight(x, z);
+            const x = positions.getX(i); const z = positions.getZ(i); const h = getTerrainHeight(x, z);
             positions.setY(i, h);
-            
-            // Simple road logic for visuals
-            const isRoad = (Math.abs(x) < 60 && Math.abs(z) < 60 && (Math.abs(x%30)<4 || Math.abs(z%30)<4));
+            const isRoad = (Math.abs(x)<60 && Math.abs(z)<60 && (Math.abs(x%30)<4 || Math.abs(z%30)<4));
             if (isRoad) colors.push(cRoad.r, cRoad.g, cRoad.b);
             else if (h < 5 && dist(x,0,z,0,0,0) > 160) colors.push(cSand.r, cSand.g, cSand.b);
             else colors.push(cGround.r, cGround.g, cGround.b);
@@ -186,394 +257,343 @@
         geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
         geometry.computeVertexNormals();
         const ground = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true }));
-        ground.receiveShadow = true;
-        scene.add(ground);
+        ground.receiveShadow = true; scene.add(ground);
 
-        // Buildings & Users
+        // Buildings (Load or Gen)
         const boxGeo = new THREE.BoxGeometry(1,1,1); boxGeo.translate(0,0.5,0);
         const bMat = new THREE.MeshStandardMaterial({color: 0xdddddd});
-        const bMesh = new THREE.InstancedMesh(boxGeo, bMat, 2000);
+        const bMesh = new THREE.InstancedMesh(boxGeo, bMat, 4000);
         bMesh.castShadow = true; bMesh.receiveShadow = true;
         const dummy = new THREE.Object3D();
         let bIdx = 0;
 
-        // Generate City & Mountain Buildings
-        for(let i=0; i<1500; i++) {
-            const r = Math.sqrt(Math.random()) * 400;
-            const theta = Math.random() * Math.PI * 2;
-            const x = Math.cos(theta) * r;
-            const z = Math.sin(theta) * r;
-            
-            if (r < 30) continue; // Park
-            const h = getTerrainHeight(x, z);
-            
-            let bh = 0;
-            if (r < 150) bh = 10 + Math.random() * 50; // City
-            else if (h > 10 && h < 60) bh = 4 + Math.random() * 5; // Mountain
-            
-            if (bh > 0) {
-                dummy.position.set(x, h, z);
-                dummy.scale.set(5 + Math.random()*5, bh, 5 + Math.random()*5);
-                dummy.rotation.y = Math.random();
-                dummy.updateMatrix();
-                bMesh.setMatrixAt(bIdx++, dummy.matrix);
+        function placeBuilding(b) {
+            dummy.position.set(b.x, b.y, b.z);
+            dummy.scale.set(b.w, b.h, b.d);
+            dummy.rotation.y = random();
+            dummy.updateMatrix();
+            bMesh.setMatrixAt(bIdx++, dummy.matrix);
+        }
+
+        if (isLoaded) {
+            // Load existing
+            worldState.cityBuildings.forEach(b => placeBuilding(b));
+            worldState.mountainBuildings.forEach(b => placeBuilding(b));
+        } else {
+            // Generate new
+            for(let i=0; i<1500; i++) {
+                const r = Math.sqrt(random()) * 400;
+                const theta = random() * Math.PI * 2;
+                const x = Math.cos(theta) * r; const z = Math.sin(theta) * r;
+                if (r < 30) continue;
+                const h = getTerrainHeight(x, z);
+                let bh = 0;
+                if (r < 150) bh = 10 + random() * 50;
+                else if (h > 10 && h < 60) bh = 4 + random() * 5;
                 
-                // Add potential user loc
-                if (userLocations.length < 6 && Math.random() < 0.05) {
-                    userLocations.push(new THREE.Vector3(x, h + bh + 2, z));
+                if (bh > 0) {
+                    const w = 5 + random()*5; const d = 5 + random()*5;
+                    const b = { x, z, y: h, w, d, h: bh, cx:x, cz:z, cy:h+bh/2, r: Math.max(w,d), minX: x-w/2-2, maxX: x+w/2+2, minZ: z-d/2-2, maxZ: z+d/2+2, minY: h, maxY: h+bh+2 };
+                    if (r < 150) worldState.cityBuildings.push(b); else worldState.mountainBuildings.push(b);
+                    worldState.buildingColliders.push(b); // All obstacles
+                    placeBuilding(b);
                 }
             }
+            // Generate Users if new
+            const getSurface = (b) => {
+                const isRoof = random()<0.3;
+                if(isRoof) return new THREE.Vector3(b.x, b.h+b.y+0.5, b.z);
+                return new THREE.Vector3(b.x, b.y + b.h*0.8, b.z + b.d/2 + 0.5); // Simplified Wall
+            };
+            // 4 City, 2 Mountain
+            worldState.cityBuildings.sort(()=>random()-0.5);
+            worldState.mountainBuildings.sort(()=>random()-0.5);
+            for(let i=0; i<4; i++) if(worldState.cityBuildings[i]) worldState.finalUsers.push(getSurface(worldState.cityBuildings[i]));
+            for(let i=0; i<2; i++) if(worldState.mountainBuildings[i]) worldState.finalUsers.push(getSurface(worldState.mountainBuildings[i]));
+            
+            // Save
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(worldState));
         }
+
         scene.add(bMesh);
+        document.getElementById('obs-count').innerText = worldState.buildingColliders.length + " Objects";
 
-        // Fallback Users
-        while(userLocations.length < 6) {
-            userLocations.push(new THREE.Vector3((Math.random()-0.5)*200, 60, (Math.random()-0.5)*200));
-        }
-
-        // --- 4. User Labels UI ---
+        // Labels & Signal UI
         const labelContainer = document.getElementById('labels-container');
         const userListUi = document.getElementById('user-list');
         const labelObjs = [];
+        const userElements = [];
 
-        userLocations.forEach((pos, i) => {
+        // Helper for Signal
+        function checkSignal(dronePos, targetPos) {
+            const dist = dronePos.distanceTo(targetPos);
+            // Simple LOS check
+            const vec = new THREE.Vector3().subVectors(targetPos, dronePos);
+            const rayLen = vec.length();
+            let blocked = false;
+            // Raycast steps
+            const steps = 20;
+            for(let i=1; i<steps; i++) {
+                const p = dronePos.clone().add(vec.clone().multiplyScalar(i/steps));
+                // Terrain check
+                if(p.y < getTerrainHeight(p.x, p.z)+1) { blocked = true; break; }
+                // Building check (approx)
+                for(let b of worldState.buildingColliders) {
+                   if(Math.abs(p.x-b.x)<b.w/2+1 && Math.abs(p.z-b.z)<b.d/2+1 && p.y>b.y && p.y<b.y+b.h) { blocked = true; break; } 
+                }
+                if(blocked) break;
+            }
+            
+            let dbm = -30 - (dist/10) - (blocked ? 40 : 0);
+            let qual = dbm > -60 ? 'Excellent' : dbm > -80 ? 'Good' : 'Poor';
+            let color = dbm > -60 ? '#388e3c' : dbm > -80 ? '#f57c00' : '#d32f2f';
+            return { dbm: dbm.toFixed(0), qual, color, dist: dist.toFixed(0) };
+        }
+
+        worldState.finalUsers.forEach((pObj, i) => {
+            const pos = new THREE.Vector3(pObj.x, pObj.y, pObj.z);
             const id = `USER_${i+1}`;
             const el = document.createElement('div');
             el.className = 'floating-label'; el.innerText = id;
             labelContainer.appendChild(el);
             labelObjs.push({pos, el});
-            userListUi.innerHTML += `<div>${id}: [${pos.x.toFixed(0)}, ${pos.y.toFixed(0)}, ${pos.z.toFixed(0)}]</div>`;
+            
+            const row = document.createElement('div'); row.className='user-coord-row';
+            row.innerHTML = `<span>${id}</span><span id="sig-${i}" style="font-size:9px">...</span>`;
+            userListUi.appendChild(row);
+            userElements.push({pos, dom: document.getElementById(`sig-${i}`)});
         });
 
-        // --- 5. Drone & Particles ---
-        const droneGroup = new THREE.Group();
-        // Simple visual drone
-        const dBody = new THREE.Mesh(new THREE.BoxGeometry(2,0.5,1), new THREE.MeshBasicMaterial({color:0x111111}));
-        droneGroup.add(dBody);
-        droneGroup.add(new THREE.AxesHelper(3));
-        droneGroup.position.set(0, 100, 0);
-        scene.add(droneGroup);
-
-        // Wind Particles
-        const pGeo = new THREE.BufferGeometry();
-        const pPos = new Float32Array(3000);
-        for(let i=0; i<3000; i++) pPos[i] = (Math.random()-0.5)*400;
-        pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-        const pMat = new THREE.PointsMaterial({color: 0x00ffff, size: 0.8, transparent:true, opacity:0.5});
-        const windSys = new THREE.Points(pGeo, pMat);
+        // Particles
+        const pGeo = new THREE.BufferGeometry(); const pPos = new Float32Array(3000);
+        for(let i=0;i<3000;i++) pPos[i]=(Math.random()-0.5)*400;
+        pGeo.setAttribute('position',new THREE.BufferAttribute(pPos,3));
+        const windSys=new THREE.Points(pGeo,new THREE.PointsMaterial({color:0x00ffff,size:0.8,transparent:true,opacity:0.5}));
         scene.add(windSys);
 
-        // --- 6. Experiment System ---
-        let currentMode = 'FREE'; // FREE, ATC, PATH
-        const expGroup = new THREE.Group(); // Holds experiment visuals (trails, ghost drones)
-        scene.add(expGroup);
+        // Player Drone
+        const playerDrone = new THREE.Group();
+        const dBody = new THREE.Mesh(new THREE.BoxGeometry(2,0.5,1), new THREE.MeshBasicMaterial({color:0x111111}));
+        playerDrone.add(dBody);
+        const da = new THREE.Group();
+        da.add(new THREE.Mesh(new THREE.CylinderGeometry(0.2,0.2,4,8), new THREE.MeshBasicMaterial({color:0x00ff00})));
+        const dh = new THREE.Mesh(new THREE.ConeGeometry(0.5,1.5,8), new THREE.MeshBasicMaterial({color:0x00ff00}));
+        dh.position.y=2.5; da.add(dh); da.rotation.x=Math.PI/2; playerDrone.add(da);
+        playerDrone.position.set(0, 100, 0); scene.add(playerDrone);
 
-        // Variables for experiments
-        let expTime = 0;
-        let expDrones = []; // { mesh, path, color, currentIdx, progress }
-        let expPaths = [];
+        // --- 4. EXPERIMENTS ---
+        let appMode = 'FREE'; const expGroup = new THREE.Group(); scene.add(expGroup);
+        let expDrones = []; const startPt = new THREE.Vector3(0, 100, 0);
+        const waypoints = [startPt, ...worldState.finalUsers.map(u=>new THREE.Vector3(u.x,u.y,u.z))];
 
-        // UI Refs
-        const legendBox = document.getElementById('legend-box');
-        const legendContent = document.getElementById('legend-content');
-        const instr = document.getElementById('instructions');
-        const modeVal = document.getElementById('mode-val');
-
-        function clearExperiment() {
-            expGroup.clear();
-            expDrones = [];
-            expPaths = [];
-            legendBox.style.display = 'none';
-            droneGroup.visible = true; // Show main drone in Free mode
+        function resetSim() {
+            expGroup.clear(); expDrones = []; playerDrone.visible = true;
+            controls.enabled = true; document.getElementById('legend-box').style.display='none';
+            document.getElementById('instructions').innerText = "Mode: Free Flight | WASD + Arrows";
         }
 
-        // --- EXPERIMENT 1: ATC COMPARE ---
-        function startATCExperiment() {
-            clearExperiment();
-            currentMode = 'ATC';
-            modeVal.innerText = "EXP: ATC (PID vs FEAR)";
-            droneGroup.visible = false; // Hide player drone
-            instr.innerText = "Observing ATC Performance in Turbulence...";
-            
-            // Setup Legend
-            legendBox.style.display = 'block';
-            legendContent.innerHTML = `
-                <div class="legend-item"><div class="legend-color" style="background:#0088ff"></div>FEAR-PID (Stable)</div>
-                <div class="legend-item"><div class="legend-color" style="background:#ff0000"></div>Classic PID (Oscillating)</div>
-            `;
-
-            // Create Path (Visit all users)
-            const pathPoints = [new THREE.Vector3(0, 120, 0), ...userLocations];
-            
-            // Create 2 Ghost Drones
-            createGhostDrone(0x0088ff, "FEAR-PID", pathPoints, 'FEAR');
-            createGhostDrone(0xff0000, "PID", pathPoints, 'PID');
-            
-            expTime = 0;
-        }
-
-        function createGhostDrone(color, label, points, type) {
+        function addMarker(pos, color, text) {
             const g = new THREE.Group();
-            const mesh = new THREE.Mesh(new THREE.ConeGeometry(1, 2, 4), new THREE.MeshBasicMaterial({color: color}));
-            mesh.rotation.x = Math.PI/2; 
-            g.add(mesh);
-            
-            // Trail Line
-            const maxTrail = 500;
-            const trailGeo = new THREE.BufferGeometry();
-            const trailPos = new Float32Array(maxTrail * 3);
-            trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3));
-            trailGeo.setDrawRange(0, 0);
-            const trail = new THREE.Line(trailGeo, new THREE.LineBasicMaterial({color: color, linewidth: 2}));
-            
-            expGroup.add(g);
-            expGroup.add(trail);
-
-            expDrones.push({
-                obj: g,
-                points: points,
-                type: type,
-                idx: 0,
-                t: 0,
-                trail: trail,
-                trailIdx: 0,
-                trailArr: trailPos
-            });
+            const p = new THREE.Mesh(new THREE.CylinderGeometry(0.5,0.5,20,8), new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.7}));
+            p.position.y=10; g.add(p); g.position.copy(pos); expGroup.add(g);
+        }
+        function createArrow(color) {
+            const g = new THREE.Group(); const m = new THREE.MeshBasicMaterial({color});
+            const s = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,3,8), m); s.rotation.x=Math.PI/2; s.position.z=-1.5;
+            const h = new THREE.Mesh(new THREE.ConeGeometry(0.8,2,16), m); h.rotation.x=Math.PI/2; h.position.z=1;
+            g.add(s); g.add(h); return g;
+        }
+        function createTube(curve, color, op=0.8) {
+            const geo = new THREE.TubeGeometry(curve, 400, 0.6, 6, false);
+            const mat = new THREE.MeshBasicMaterial({color, transparent:true, opacity:op});
+            expGroup.add(new THREE.Mesh(geo, mat));
         }
 
-        function updateATC(dt) {
-            const windStrength = 0.5; // Disturbance amount
-
-            expDrones.forEach(d => {
-                const p1 = d.points[d.idx];
-                const p2 = d.points[(d.idx + 1) % d.points.length];
-                
-                // Move logic
-                const dist = p1.distanceTo(p2);
-                const speed = 30; // m/s
-                const travelTime = dist / speed;
-                
-                d.t += dt;
-                let alpha = d.t / travelTime;
-                
-                if (alpha >= 1.0) {
-                    // Arrived, wait 0.5s? Simplified: just next point
-                    d.idx = (d.idx + 1) % d.points.length;
-                    d.t = 0;
-                    alpha = 0;
+        // Pathfinding
+        function checkLineCol(p1, p2) {
+            const dist = p1.distanceTo(p2); const steps = Math.ceil(dist/2);
+            const step = new THREE.Vector3().subVectors(p2,p1).divideScalar(steps);
+            const c = p1.clone();
+            for(let i=0;i<steps;i++){
+                c.add(step);
+                for(let b of worldState.buildingColliders) {
+                    if(c.x>b.minX && c.x<b.maxX && c.z>b.minZ && c.z<b.maxZ && c.y>b.minY && c.y<b.maxY) return b;
                 }
-
-                // Base Position
-                const targetPos = new THREE.Vector3().lerpVectors(p1, p2, alpha);
-
-                // Add Physics Noise based on Algorithm
-                if (d.type === 'PID') {
-                    // Classic PID: Oscillates and gets pushed by wind
-                    const noise = Math.sin(expTime * 5) * 5 + Math.cos(expTime * 3) * 5;
-                    const windDrift = Math.sin(expTime * 0.5) * 10;
-                    targetPos.y += noise * 0.5; // Altitude wobbles
-                    targetPos.x += windDrift + Math.sin(expTime * 10)*2; // Path overshoots
-                } else {
-                    // FEAR-PID: Rock solid, tiny micro-corrections
-                    const micro = Math.sin(expTime * 20) * 0.2;
-                    targetPos.y += micro; 
-                    // No drift
-                }
-
-                d.obj.position.copy(targetPos);
-                d.obj.lookAt(p2);
-
-                // Update Trail
-                if (d.trailIdx < 500) {
-                    d.trailArr[d.trailIdx*3] = targetPos.x;
-                    d.trailArr[d.trailIdx*3+1] = targetPos.y;
-                    d.trailArr[d.trailIdx*3+2] = targetPos.z;
-                    d.trailIdx++;
-                    d.trail.geometry.setDrawRange(0, d.trailIdx);
-                    d.trail.geometry.attributes.position.needsUpdate = true;
-                }
-            });
-            expTime += dt;
-        }
-
-        // --- EXPERIMENT 2: PATH PLANNING ---
-        function startPathExperiment() {
-            clearExperiment();
-            currentMode = 'PATH';
-            modeVal.innerText = "EXP: PLANNING (ACS-DS)";
-            droneGroup.visible = false;
-            instr.innerText = "Comparing Path Planning Algorithms...";
-
-            legendBox.style.display = 'block';
-            legendContent.innerHTML = `
-                <div class="legend-item"><div class="legend-color" style="background:#ffff00"></div>ACS (Baseline)</div>
-                <div class="legend-item"><div class="legend-color" style="background:#00ff00"></div>TD3 (RL)</div>
-                <div class="legend-item"><div class="legend-color" style="background:#0088ff"></div>ACS-DS (Proposed)</div>
-            `;
-
-            const points = [new THREE.Vector3(0, 100, 0), ...userLocations, new THREE.Vector3(0, 100, 0)];
-            
-            // Draw 3 Static Paths
-            drawPathLine(points, 0xffff00, 'ACS');    // Yellow: Jagged
-            drawPathLine(points, 0x00ff00, 'TD3');    // Green: Smooth
-            drawPathLine(points, 0x0088ff, 'ACS-DS'); // Blue: Optimal
-        }
-
-        function drawPathLine(waypoints, color, algType) {
-            // Generate curve points based on algorithm type
-            const curvePoints = [];
-            
-            if (algType === 'ACS') {
-                // Jagged, hits obstacles (simulated by random deviation)
-                for(let i=0; i<waypoints.length-1; i++) {
-                    curvePoints.push(waypoints[i]);
-                    // Add jagged waypoint
-                    const mid = new THREE.Vector3().lerpVectors(waypoints[i], waypoints[i+1], 0.5);
-                    mid.y -= 20; // Dips down dangerously
-                    mid.x += (Math.random()-0.5)*50;
-                    curvePoints.push(mid);
-                }
-                curvePoints.push(waypoints[waypoints.length-1]);
-            } 
-            else if (algType === 'TD3') {
-                // Smooth spline
-                const curve = new THREE.CatmullRomCurve3(waypoints);
-                curvePoints.push(...curve.getPoints(100));
             }
-            else {
-                // ACS-DS: Smooth + Safe (Higher altitude to avoid buildings)
-                const safeWaypoints = waypoints.map(p => new THREE.Vector3(p.x, Math.max(p.y, 80), p.z));
-                const curve = new THREE.CatmullRomCurve3(safeWaypoints);
-                // "Decoupling" logic visual: cleaner curves
-                curve.tension = 0.2; 
-                curvePoints.push(...curve.getPoints(100));
+            return null;
+        }
+        function genPath(pts, type) {
+            const res = [pts[0]];
+            for(let i=0;i<pts.length-1;i++) {
+                const s=pts[i], e=pts[i+1];
+                const obs = checkLineCol(s, e);
+                if(obs) {
+                    if(type==='ACS') {
+                        const mid=new THREE.Vector3().lerpVectors(s,e,0.5);
+                        mid.y=Math.min(s.y,e.y)-10; mid.x+=30; res.push(mid);
+                    } else if(type==='TD3') {
+                        const mid=new THREE.Vector3().lerpVectors(s,e,0.5);
+                        const det=new THREE.Vector3(obs.cx, Math.max(s.y,obs.maxY+2), obs.cz);
+                        res.push(det);
+                    } else { // DS
+                        const mid=new THREE.Vector3().lerpVectors(s,e,0.5);
+                        if(obs.h<30) mid.y = obs.maxY+15; // Jump
+                        else { 
+                            const dir=new THREE.Vector3().subVectors(e,s).normalize();
+                            const perp=new THREE.Vector3(-dir.z,0,dir.x).multiplyScalar(40);
+                            mid.add(perp);
+                        }
+                        res.push(mid);
+                    }
+                }
+                res.push(e);
             }
+            const c=new THREE.CatmullRomCurve3(res); c.tension=(type==='ACS'?0:0.5); return c;
+        }
 
-            const geo = new THREE.BufferGeometry().setFromPoints(curvePoints);
-            const mat = new THREE.LineBasicMaterial({ color: color, linewidth: 3 });
-            const line = new THREE.Line(geo, mat);
-            expGroup.add(line);
+        // Exp 1: ATC
+        function setupATC(mode) {
+            resetSim(); appMode = (mode==='FLY'?'ATC_FLY':'ATC_STATIC'); playerDrone.visible=false;
+            document.getElementById('mode-val').innerText = `ATC (${mode})`;
+            document.getElementById('legend-box').style.display='block';
+            document.getElementById('legend-content').innerHTML = `<div class="legend-item"><div class="legend-color" style="background:#0088ff"></div>FEAR-PID</div><div class="legend-item"><div class="legend-color" style="background:#ff0000"></div>PID</div>`;
             
-            // Add markers
-            waypoints.forEach(p => {
-                const m = new THREE.Mesh(new THREE.SphereGeometry(2), new THREE.MeshBasicMaterial({color:color}));
-                m.position.copy(p);
-                expGroup.add(m);
+            addMarker(waypoints[0], 0x00ff00, "START"); addMarker(waypoints[waypoints.length-1], 0xff0000, "END");
+            const baseC = genPath(waypoints, 'ACS-DS'); const clean = baseC.getPoints(300);
+            const noisy = clean.map((p,i)=> {
+                const np=p.clone(); if(i>20&&i<280){ np.y+=Math.sin(i*0.1)*8; np.x+=Math.sin(i*0.05)*12; } return np;
             });
+            const cF=new THREE.CatmullRomCurve3(clean); const cP=new THREE.CatmullRomCurve3(noisy);
+            createTube(cF,0x0088ff); createTube(cP,0xff0000);
+
+            if(mode==='FLY') {
+                const d1={m:createArrow(0x0088ff),c:cF,t:0,isT:true}; const d2={m:createArrow(0xff0000),c:cP,t:0};
+                expDrones=[d1,d2]; expGroup.add(d1.m); expGroup.add(d2.m);
+            } else {
+                controls.target.copy(waypoints[1]); camera.position.set(waypoints[1].x+100,200,waypoints[1].z+100);
+            }
         }
 
-        // --- Interaction ---
-        document.getElementById('btn-exp-atc').onclick = startATCExperiment;
-        document.getElementById('btn-exp-path').onclick = startPathExperiment;
-        document.getElementById('btn-free').onclick = () => {
-            clearExperiment();
-            currentMode = 'FREE';
-            modeVal.innerText = "FREE FLIGHT";
-            instr.innerText = "WASD + Arrows to Fly";
-        };
+        // Exp 2: Path
+        function setupPath(mode) {
+            resetSim(); appMode = (mode==='FLY'?'PATH_FLY':'PATH_STATIC'); playerDrone.visible=false;
+            document.getElementById('mode-val').innerText = `PATH (${mode})`;
+            document.getElementById('legend-box').style.display='block';
+            document.getElementById('legend-content').innerHTML = `<div class="legend-item"><div class="legend-color" style="background:#ffff00"></div>ACS</div><div class="legend-item"><div class="legend-color" style="background:#00ff00"></div>TD3</div><div class="legend-item"><div class="legend-color" style="background:#0088ff"></div>ACS-DS</div>`;
 
-        // --- Controls (Free Flight) ---
-        const keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-        window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
-        window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
+            addMarker(waypoints[0], 0x00ff00, "START"); addMarker(waypoints[waypoints.length-1], 0xff0000, "END");
+            const c1=genPath(waypoints,'ACS'); const c2=genPath(waypoints,'TD3'); const c3=genPath(waypoints,'ACS-DS');
+            createTube(c1,0xffff00,0.6); createTube(c2,0x00ff00,0.6); createTube(c3,0x0088ff,0.9);
 
-        // Simple Physics for Free Flight
-        let velocity = new THREE.Vector3();
-        function updateFreeFlight(dt) {
-            let turn = 0;
-            if(keys.ArrowLeft) { droneGroup.rotation.y += 2*dt; turn=1; }
-            if(keys.ArrowRight) { droneGroup.rotation.y -= 2*dt; turn=1; }
-            
-            const yaw = droneGroup.rotation.y;
-            const fwd = new THREE.Vector3(0,0,1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw); // Corrected Z+ forward for this simpler model if needed, or Z-
-            // Let's stick to standard ThreeJS: Fwd is usually -Z. Let's try -Z.
-            const realFwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-            const right = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0), yaw);
-
-            let acc = new THREE.Vector3();
-            if(keys.w) acc.add(realFwd); if(keys.s) acc.sub(realFwd);
-            if(keys.a) acc.sub(right); if(keys.d) acc.add(right);
-            if(acc.lengthSq()>0) acc.normalize().multiplyScalar(20);
-
-            let vAcc = 0;
-            if(keys.ArrowUp) vAcc = 10; if(keys.ArrowDown) vAcc = -10;
-
-            velocity.x += acc.x * dt; 
-            velocity.z += acc.z * dt;
-            velocity.y += vAcc * dt;
-            velocity.multiplyScalar(0.95); // Drag
-
-            droneGroup.position.add(velocity.clone().multiplyScalar(dt));
-            
-            // Floor
-            if(droneGroup.position.y < 2) { droneGroup.position.y=2; velocity.y=0; }
-            
-            // Tilt visual
-            const localVel = velocity.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -yaw);
-            droneGroup.rotation.x = -localVel.z * 0.05;
-            droneGroup.rotation.z = -localVel.x * 0.05;
-            
-            controls.target.copy(droneGroup.position);
+            if(mode==='FLY') {
+                const d1={m:createArrow(0xffff00),c:c1,t:0}; const d2={m:createArrow(0x00ff00),c:c2,t:0};
+                const d3={m:createArrow(0x0088ff),c:c3,t:0,isT:true};
+                expDrones=[d1,d2,d3]; expGroup.add(d1.m); expGroup.add(d2.m); expGroup.add(d3.m);
+            } else {
+                const ctr=waypoints[Math.floor(waypoints.length/2)]; controls.target.copy(ctr); camera.position.set(ctr.x+200,250,ctr.z+200);
+            }
         }
 
-        // --- Main Loop ---
-        function dist(x1,y1,z1,x2,y2,z2) { return Math.sqrt((x2-x1)**2 + (y2-y1)**2 + (z2-z1)**2); }
+        // --- Loop ---
+        const keys={w:0,s:0,a:0,d:0,ArrowUp:0,ArrowDown:0,ArrowLeft:0,ArrowRight:0};
+        window.onkeydown=e=>{if(keys.hasOwnProperty(e.key))keys[e.key]=1;}; window.onkeyup=e=>{if(keys.hasOwnProperty(e.key))keys[e.key]=0;};
+        const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true;
+        const vel = new THREE.Vector3();
 
         function animate() {
-            requestAnimationFrame(animate);
-            const dt = clock.getDelta();
+            requestAnimationFrame(animate); const dt=clock.getDelta();
 
-            if (currentMode === 'FREE') {
-                updateFreeFlight(dt);
-            } else if (currentMode === 'ATC') {
-                updateATC(dt);
-                // Rotate camera slowly around center
-                const r = 400;
-                camera.position.x = Math.sin(expTime*0.1) * r;
-                camera.position.z = Math.cos(expTime*0.1) * r;
-                camera.lookAt(0, 50, 0);
-            } else if (currentMode === 'PATH') {
-                // Static view logic or slow orbit
-                const r = 500;
-                camera.position.x = Math.sin(Date.now()*0.0002) * r;
-                camera.position.z = Math.cos(Date.now()*0.0002) * r;
-                camera.lookAt(0, 50, 0);
-            }
+            if(appMode.includes('FLY')) {
+                expDrones.forEach(d => {
+                    d.t += dt * 0.03; if(d.t>1) d.t=0;
+                    const p = d.c.getPointAt(d.t); const np = d.c.getPointAt(Math.min(d.t+0.01,1));
+                    d.m.position.copy(p); d.m.lookAt(np);
+                    if(d.isT) {
+                        const fwd=new THREE.Vector3().subVectors(np,p).normalize();
+                        if(fwd.lengthSq()>0.1) {
+                            const cp=p.clone().add(fwd.multiplyScalar(-40)).add(new THREE.Vector3(0,20,0));
+                            camera.position.lerp(cp,0.1); camera.lookAt(p);
+                        }
+                    }
+                });
+            } else if(appMode==='FREE') {
+                const yaw=playerDrone.rotation.y;
+                const fwd=new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+                const rgt=new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+                let acc=new THREE.Vector3();
+                if(keys.w)acc.add(fwd); if(keys.s)acc.sub(fwd); if(keys.a)acc.sub(rgt); if(keys.d)acc.add(rgt);
+                if(keys.ArrowLeft)playerDrone.rotation.y+=2*dt; if(keys.ArrowRight)playerDrone.rotation.y-=2*dt;
+                if(acc.lengthSq()>0) acc.normalize().multiplyScalar(30);
+                let va=0; if(keys.ArrowUp)va=15; if(keys.ArrowDown)va=-15;
+                vel.x+=acc.x*dt; vel.z+=acc.z*dt; vel.y+=va*dt; vel.multiplyScalar(0.95);
+                playerDrone.position.add(vel.clone().multiplyScalar(dt));
+                if(playerDrone.position.y<2) playerDrone.position.y=2;
+                controls.target.copy(playerDrone.position);
+                controls.update();
+            } else controls.update();
 
-            // Labels
-            labelObjs.forEach(o => {
-                const p = o.pos.clone(); p.project(camera);
-                const x = (p.x*.5+.5)*window.innerWidth;
-                const y = (p.y*-.5+.5)*window.innerHeight;
-                if(p.z<1 && x>0 && x<window.innerWidth && y>0 && y<window.innerHeight) {
-                    o.el.style.display = 'block';
-                    o.el.style.transform = `translate(-50%,-100%) translate(${x}px,${y}px)`;
-                } else o.el.style.display = 'none';
+            // Particles & Labels & Signal Update
+            const pArr=windSys.geometry.attributes.position.array;
+            for(let i=0;i<1000;i++){ pArr[i*3]+=1; if(pArr[i*3]>200)pArr[i*3]-=400; }
+            windSys.geometry.attributes.position.needsUpdate=true;
+
+            labelObjs.forEach(o=>{
+                const p=o.pos.clone(); p.project(camera);
+                const x=(p.x*.5+.5)*window.innerWidth; const y=(p.y*-.5+.5)*window.innerHeight;
+                o.el.style.display = (p.z<1&&x>0&&x<window.innerWidth&&y>0&&y<window.innerHeight) ? 'block' : 'none';
+                o.el.style.transform = `translate(-50%,-100%) translate(${x}px,${y}px)`;
             });
 
-            // Wind Particles
-            const pArr = windSys.geometry.attributes.position.array;
-            for(let i=0; i<3000; i++) {
-                pArr[i*3] += 1; // Simple wind x
-                if(pArr[i*3] > 200) pArr[i*3] -= 400;
+            // Update Signal Data in UI periodically (every 10 frames approx)
+            if (renderer.info.render.frame % 10 === 0) {
+                let dp = playerDrone.position;
+                // If in fly mode, try to use the tracked drone position (e.g. FEAR or ACS-DS)
+                if (appMode.includes('FLY') && expDrones.length > 0) {
+                   const tracked = expDrones.find(d => d.isT) || expDrones[0];
+                   if (tracked && tracked.m) dp = tracked.m.position;
+                }
+                
+                if (userElements && userElements.length > 0) {
+                    userElements.forEach(u => {
+                        const info = checkSignal(dp, u.pos);
+                        u.dom.innerHTML = `<span style="color:${info.color}">${info.dbm}dBm (${info.qual}) | ${info.dist}m</span>`;
+                    });
+                }
             }
-            windSys.geometry.attributes.position.needsUpdate = true;
 
-            // Use controls if in Free mode
-            if(currentMode === 'FREE') controls.update();
-            
             renderer.render(scene, camera);
         }
+        window.addEventListener('resize', () => { camera.aspect=window.innerWidth/window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth,window.innerHeight); });
+        
+        // Listeners
+        document.getElementById('btn-atc-fly').onclick=()=>setupATC('FLY');
+        document.getElementById('btn-atc-static').onclick=()=>setupATC('STATIC');
+        document.getElementById('btn-path-fly').onclick=()=>setupPath('FLY');
+        document.getElementById('btn-path-static').onclick=()=>setupPath('STATIC');
+        document.getElementById('btn-free').onclick=()=>{ resetSim(); appMode='FREE'; };
+        
+        document.getElementById('btn-export').onclick=()=>{
+            const a=document.createElement('a'); a.href='data:application/json;charset=utf-8,'+encodeURIComponent(JSON.stringify(worldState));
+            a.download='map_data.json'; a.click();
+        };
+        document.getElementById('btn-import').onclick=()=>document.getElementById('file-input').click();
+        document.getElementById('file-input').onchange=(e)=>{
+            const r=new FileReader(); r.onload=e=>{ localStorage.setItem(STORAGE_KEY,e.target.result); location.reload(); }; r.readAsText(e.target.files[0]);
+        };
+        document.getElementById('btn-reset').onclick=()=>{ if(confirm('New Map?')) { localStorage.removeItem(STORAGE_KEY); location.reload(); } };
+        document.getElementById('btn-snapshot').onclick=()=>{ renderer.render(scene,camera); html2canvas(document.body).then(c=>{ const a=document.createElement('a'); a.download='shot.png'; a.href=c.toDataURL(); a.click(); }); };
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth/window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        // Welcome
+        const wp = document.getElementById('welcome-popup');
+        const ws = localStorage.getItem('drone_welcome_hide');
+        if(ws) wp.classList.add('hidden');
+        document.getElementById('welcome-close').onclick=()=>{
+            if(document.getElementById('dont-show-again').checked) localStorage.setItem('drone_welcome_hide','true');
+            wp.classList.add('hidden');
+        };
 
         animate();
+    } catch(e) { console.error(e); }
     </script>
 </body>
 </html>
