@@ -1,0 +1,1562 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulation_Env_Mini_Demo</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Courier New', Courier, monospace;
+            background-color: #b0b0b0;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        /* UI Panel Styling */
+        #ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(240, 240, 240, 0.95);
+            padding: 15px;
+            width: 320px; 
+            max-height: 90vh;
+            overflow-y: auto;
+            border-radius: 2px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-left: 5px solid #ff4400;
+            pointer-events: auto;
+            user-select: none;
+            z-index: 100;
+        }
+
+        #ui-panel::-webkit-scrollbar { width: 6px; }
+        #ui-panel::-webkit-scrollbar-thumb { background: #ccc; border-radius: 3px; }
+
+        .ui-header {
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: #333;
+            letter-spacing: 1px;
+        }
+
+        .ui-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 11px;
+            color: #555;
+            align-items: center;
+        }
+
+        .ui-label { font-weight: 600; }
+        .ui-value { font-family: monospace; }
+        .status-red { color: #d32f2f; font-weight: bold; }
+        .status-green { color: #388e3c; font-weight: bold; }
+        .status-orange { color: #f57c00; font-weight: bold; }
+        .divider { border-bottom: 1px dashed #aaa; margin: 10px 0; }
+        
+        .section-title {
+            margin-top: 15px; 
+            margin-bottom: 5px; 
+            font-size: 11px; 
+            color: #777; 
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        .disclaimer {
+            font-size: 9px;
+            color: #888;
+            font-style: italic;
+            margin-bottom: 8px;
+            line-height: 1.2;
+        }
+        
+        .legend-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: #00ffff;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        /* Battery Bar */
+        #battery-container {
+            width: 100%;
+            height: 8px;
+            background: #ddd;
+            border-radius: 4px;
+            margin-top: 2px;
+            overflow: hidden;
+        }
+        #battery-bar {
+            height: 100%;
+            width: 100%;
+            background: #388e3c;
+            transition: width 0.2s, background 0.2s;
+        }
+
+        /* Buttons */
+        .btn-group {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .mode-btn {
+            flex: 1;
+            padding: 8px;
+            background: #ddd;
+            color: #555;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 10px;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .mode-btn:hover { background: #ccc; }
+        .mode-btn.active {
+            background: #ff4400;
+            color: white;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        #btn-snapshot {
+            width: 100%;
+            margin-top: 8px;
+            background: #333;
+            color: #fff;
+        }
+        #btn-snapshot:hover { background: #555; }
+        #btn-snapshot:active { background: #000; }
+        
+        /* Action Buttons */
+        #btn-export {
+            background: #00796b; color: white;
+        }
+        #btn-import {
+            background: #0288d1; color: white;
+        }
+        #btn-reset {
+            background: #d32f2f; color: white; margin-top: 5px; width: 100%;
+        }
+        
+        /* Hidden file input */
+        #file-input { display: none; }
+
+        /* 3D Floating Labels */
+        #labels-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: 50;
+        }
+
+        .floating-label {
+            position: absolute;
+            background: #0d47a1;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+            pointer-events: none;
+            transform: translate(-50%, -100%);
+            white-space: nowrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            transition: opacity 0.2s;
+            display: none; 
+        }
+        
+        .floating-label::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -4px;
+            border-width: 4px;
+            border-style: solid;
+            border-color: #0d47a1 transparent transparent transparent;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.9);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-size: 13px;
+            pointer-events: none;
+            text-align: center;
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 100;
+        }
+
+        #warning-msg {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #ff4444;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px black;
+            display: none;
+            pointer-events: none;
+            border: 2px solid #ff4444;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.7);
+            z-index: 200;
+        }
+
+        .user-coord-row {
+            font-size: 10px;
+            color: #333;
+            margin-bottom: 3px;
+            font-family: monospace;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .user-coord-row > span:first-child {
+            font-weight: 600;
+        }
+        .user-coord-row > span:last-child {
+            font-size: 9px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-panel">
+        <div class="ui-header">SIMULATION_ENV_MINI_DEMO</div>
+        
+        <!-- Status -->
+        <div class="ui-row">
+            <span class="ui-label">FEAR-PID:</span>
+            <span class="ui-value status-orange" id="ctrl-mode-val">SIMPLE</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">AGENT_STATE:</span>
+            <span class="ui-value status-green" id="agent-state">STABLE</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">BATTERY:</span>
+            <span class="ui-value" id="battery-val">100%</span>
+        </div>
+        <div id="battery-container">
+            <div id="battery-bar"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="ui-row">
+            <span class="ui-label">POSITION:</span>
+            <span class="ui-value" id="pos-val">0, 100, 0</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">SPEED:</span>
+            <span class="ui-value" id="speed-val">0.0 m/s</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">ACCEL:</span>
+            <span class="ui-value" id="accel-val">0.00 m/s²</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">ATTITUDE (P/R):</span>
+            <span class="ui-value" id="att-val">0°, 0°</span>
+        </div>
+
+        <!-- Env Vars -->
+        <div class="section-title">ENVIRONMENT</div>
+        <div class="ui-row">
+            <span class="ui-label">WIND:</span>
+            <span class="ui-value" id="wind-val">4.2 m/s NW</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">COLLISION:</span>
+            <span class="ui-value" id="collision-status">FALSE</span>
+        </div>
+        <div class="disclaimer">
+            <span class="legend-dot"></span> Cyan particles visualize wind flow
+        </div>
+
+        <!-- Physics Config -->
+        <div class="section-title">PHYSICS CONFIG</div>
+        <div class="disclaimer">
+            * Simple: Velocity-based control.<br>
+            * Control: simple FEAR-PID Attitude & Rate control, Motor mixing, Battery drain.
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">MAX_ACCEL:</span>
+            <span class="ui-value">5.28 m/s²</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">MAX_H_SPEED:</span>
+            <span class="ui-value">60.0 m/s</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">MAX_ALTITUDE:</span>
+            <span class="ui-value">150.0 m</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">DRAG_COEFF:</span>
+            <span class="ui-value">0.5</span>
+        </div>
+        <div class="ui-row">
+            <span class="ui-label">MOTORS (RPM%):</span>
+            <span class="ui-value" id="motor-val">0, 0, 0, 0</span>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section-title">USER LOCATIONS (Surface)</div>
+        <div id="user-list">
+            <!-- Populated via JS -->
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- Control Mode Switch -->
+        <div class="ui-label" style="margin-bottom: 5px;">CONTROLS</div>
+        <div class="btn-group">
+            <button id="btn-mode-simple" class="mode-btn active">Simple</button>
+            <button id="btn-mode-pid" class="mode-btn">Control</button>
+        </div>
+
+        <div class="ui-label" style="margin-top: 10px; margin-bottom: 5px;">CAMERA</div>
+        <div class="btn-group">
+            <button id="btn-orbit" class="mode-btn active">ORBIT</button>
+            <button id="btn-fpv" class="mode-btn">FPV</button>
+        </div>
+        
+        <div class="ui-label" style="margin-top: 10px; margin-bottom: 5px;">DATA MANAGEMENT</div>
+        <button id="btn-snapshot" class="mode-btn">SNAPSHOT (PNG)</button>
+        <div class="btn-group">
+            <button id="btn-export" class="mode-btn">EXPORT DATA</button>
+            <button id="btn-import" class="mode-btn">IMPORT DATA</button>
+        </div>
+        <button id="btn-reset" class="mode-btn">RESET & NEW MAP</button>
+        <input type="file" id="file-input" accept=".json">
+    </div>
+
+    <div id="labels-container"></div>
+
+    <div id="instructions">
+        W/S: Pitch (Fwd/Back) | A/D: Roll (Left/Right) | ↑/↓: Altitude | ←/→: Rotate
+    </div>
+
+    <div id="warning-msg">COLLISION DETECTED</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplex-noise/2.4.0/simplex-noise.min.js"></script>
+
+    <script>
+        // --- 0. Data Management System ---
+        
+        // Pseudo Random Number Generator (Seeded)
+        // Used to make terrain reproducible from a seed
+        let currentSeed = Math.random();
+        function seedRandom(seed) {
+            currentSeed = seed;
+        }
+        function random() {
+            // Mulberry32
+            let t = currentSeed += 0x6D2B79F5;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        }
+
+        // Global State Object
+        let worldState = {
+            seed: Date.now(), // Default new seed
+            cityBuildings: [],
+            mountainBuildings: [],
+            buildingColliders: [],
+            cabinPositions: [],
+            finalUsers: []
+        };
+
+        // Storage Key
+        const STORAGE_KEY = 'drone_sim_data_v1';
+
+        // Check Local Storage
+        const savedData = localStorage.getItem(STORAGE_KEY);
+        let isLoadedFromData = false;
+
+        if (savedData) {
+            try {
+                console.log("Found saved map data, loading...");
+                const parsed = JSON.parse(savedData);
+                // Validate essential fields
+                if (parsed.seed && parsed.cityBuildings) {
+                    worldState = parsed;
+                    isLoadedFromData = true;
+                }
+            } catch (e) {
+                console.error("Failed to load saved data", e);
+            }
+        }
+
+        // Apply Seed
+        if (!isLoadedFromData) {
+            // Generate new seed if no data found
+            worldState.seed = Math.random() * 100000;
+        }
+        seedRandom(worldState.seed);
+
+        // --- 1. Scene Initialization ---
+        const clock = new THREE.Clock(); 
+        const scene = new THREE.Scene();
+        const fogColor = 0xa0a0a0;
+        scene.background = new THREE.Color(fogColor);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 4000); 
+        camera.position.set(0, 150, 200); 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // --- 2. Lighting ---
+        const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+        scene.add(hemiLight);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+        dirLight.position.set(150, 300, 100);
+        dirLight.castShadow = true;
+        dirLight.shadow.mapSize.width = 4096; 
+        dirLight.shadow.mapSize.height = 4096;
+        dirLight.shadow.camera.left = -500; dirLight.shadow.camera.right = 500;
+        dirLight.shadow.camera.top = 500; dirLight.shadow.camera.bottom = -500;
+        scene.add(dirLight);
+
+        // --- 3. Terrain & Environment ---
+        // Pass our custom random function to SimplexNoise for deterministic terrain
+        const simplex = new SimplexNoise(random);
+        const parkRadius = 30; 
+        const transitionZone = 40;
+        const MAP_SIZE = 1000;
+        const MAP_HALF_SIZE = MAP_SIZE / 2;
+        const MAX_ALT = 150.0;
+        const MAX_TREE_HEIGHT = 110; 
+        const MOUNTAIN_BUILDING_CEILING = 60; 
+        
+        // Use worldState instead of local arrays 
+
+        const lakes = [
+            { x: 10, z: 5, rx: 20, rz: 18, rot: 0 }, 
+            { x: 250, z: -250, rx: 65, rz: 60, rot: 0 }, 
+            { x: -300, z: 120, rx: 25, rz: 100, rot: Math.PI / 4 } 
+        ];
+
+        // --- AIR WALLS ---
+        const airWallGroup = new THREE.Group();
+        const wallMat = new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
+        const wallGeoH = new THREE.PlaneGeometry(MAP_SIZE, MAX_ALT); 
+        const wallGeoV = new THREE.PlaneGeometry(MAP_SIZE, MAX_ALT); 
+        const ceilGeo = new THREE.PlaneGeometry(MAP_SIZE, MAP_SIZE);
+
+        const wallPz = new THREE.Mesh(wallGeoH, wallMat.clone()); wallPz.position.set(0, MAX_ALT/2, MAP_HALF_SIZE);
+        const wallNz = new THREE.Mesh(wallGeoH, wallMat.clone()); wallNz.position.set(0, MAX_ALT/2, -MAP_HALF_SIZE);
+        const wallPx = new THREE.Mesh(wallGeoV, wallMat.clone()); wallPx.position.set(MAP_HALF_SIZE, MAX_ALT/2, 0); wallPx.rotation.y = Math.PI/2;
+        const wallNx = new THREE.Mesh(wallGeoV, wallMat.clone()); wallNx.position.set(-MAP_HALF_SIZE, MAX_ALT/2, 0); wallNx.rotation.y = Math.PI/2;
+        const ceil = new THREE.Mesh(ceilGeo, wallMat.clone()); ceil.position.set(0, MAX_ALT, 0); ceil.rotation.x = Math.PI/2;
+
+        airWallGroup.add(wallPz, wallNz, wallPx, wallNx, ceil);
+        scene.add(airWallGroup);
+
+        function getCityLimit(angle) {
+            const noise = simplex.noise2D(Math.cos(angle), Math.sin(angle)); 
+            return 140 + noise * 60; 
+        }
+
+        function getLakeFactor(x, z, lake) {
+            const dx = x - lake.x;
+            const dz = z - lake.z;
+            const cos = Math.cos(-lake.rot);
+            const sin = Math.sin(-lake.rot);
+            const nx = dx * cos - dz * sin;
+            const nz = dx * sin + dz * cos;
+            return (nx*nx)/(lake.rx*lake.rx) + (nz*nz)/(lake.rz*lake.rz);
+        }
+
+        function isInLake(x, z, buffer = 0) {
+            for(let lake of lakes) {
+                const factor = getLakeFactor(x, z, lake);
+                if (factor < 1.0 + (buffer/lake.rx)) return true;
+            }
+            return false;
+        }
+        
+        function getTerrainHeight(x, z) {
+            const dist = Math.sqrt(x * x + z * z);
+            const angle = Math.atan2(z, x);
+            const cityLimit = getCityLimit(angle);
+
+            let mountainHeight = 0;
+            if (dist > cityLimit) {
+                let noise = simplex.noise2D(x * 0.005, z * 0.005) * 120; 
+                noise += simplex.noise2D(x * 0.015, z * 0.015) * 45;
+                noise += simplex.noise2D(x * 0.05, z * 0.05) * 10;
+                let factor = Math.min(1, (dist - cityLimit) / transitionZone);
+                factor = factor * factor * (3 - 2 * factor);
+                mountainHeight = Math.max(0, noise + 10) * factor;
+            }
+
+            let lakeBlend = 1.0; 
+            let waterLevel = -2;
+            for(let lake of lakes) {
+                const factorSq = getLakeFactor(x, z, lake); 
+                const factor = Math.sqrt(factorSq); 
+                if (factor < 1.0) return waterLevel; 
+                const bankWidth = 0.4; 
+                if (factor < 1.0 + bankWidth) {
+                    let t = (factor - 1.0) / bankWidth;
+                    t = t * t * (3 - 2 * t);
+                    lakeBlend = Math.min(lakeBlend, t);
+                }
+            }
+            return mountainHeight * lakeBlend;
+        }
+
+        function isOnRoad(x, z) {
+            const dist = Math.sqrt(x * x + z * z);
+            const angle = Math.atan2(z, x);
+            const limit = getCityLimit(angle);
+            if (dist > limit - 10) return false;
+            if (Math.abs(x) < 60 && Math.abs(z) < 60) {
+                if (Math.abs(x % 30) < 4 || Math.abs(z % 30) < 4) return true;
+            }
+            if (Math.abs(z - x) < 6 && dist > 50) return true;
+            if (Math.abs(x - Math.sin(z * 0.05) * 20) < 6 && z < -50) return true;
+            if (Math.abs(z - Math.sin(x * 0.03) * 30 - 20) < 6 && x > 50) return true;
+            const ringNoise = simplex.noise2D(x * 0.01, z * 0.01) * 20;
+            if (Math.abs(dist - (110 + ringNoise)) < 5) return true;
+            return false;
+        }
+
+        // --- Ground & Water & Objects (Simplified for brevity, logic same as before) ---
+        const planeSize = MAP_SIZE;
+        const vertexCount = 200; 
+        const geometry = new THREE.PlaneGeometry(planeSize, planeSize, vertexCount, vertexCount);
+        geometry.rotateX(-Math.PI / 2);
+        const positions = geometry.attributes.position;
+        const colors = [];
+        const cGround = new THREE.Color(0x666666);
+        const cRoad = new THREE.Color(0x333333); 
+        const cSand = new THREE.Color(0x8d7e66); 
+
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const z = positions.getZ(i);
+            const h = getTerrainHeight(x, z);
+            positions.setY(i, h);
+            let isNearLake = false;
+            for(let lake of lakes) if (getLakeFactor(x, z, lake) < 1.2) isNearLake = true;
+            if (isOnRoad(x, z)) colors.push(cRoad.r, cRoad.g, cRoad.b);
+            else if (isNearLake && h < 3) colors.push(cSand.r, cSand.g, cSand.b);
+            else colors.push(cGround.r, cGround.g, cGround.b);
+        }
+        geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.computeVertexNormals();
+        const ground = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9, flatShading: true }));
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        lakes.forEach(lake => {
+            const waterGeo = new THREE.CircleGeometry(1, 64);
+            const wPos = waterGeo.attributes.position;
+            for (let i = 1; i < wPos.count; i++) { 
+                const x = wPos.getX(i);
+                const y = wPos.getY(i);
+                const angle = Math.atan2(y, x);
+                const rNoise = simplex.noise2D(Math.cos(angle)*2, Math.sin(angle)*2);
+                const scale = 1.0 + rNoise * 0.1; 
+                wPos.setX(i, x * scale); wPos.setY(i, y * scale);
+            }
+            waterGeo.rotateX(-Math.PI / 2); waterGeo.scale(lake.rx, 1, lake.rz);
+            waterGeo.rotateY(-lake.rot); waterGeo.translate(lake.x, 0.2, lake.z);
+            scene.add(new THREE.Mesh(waterGeo, new THREE.MeshStandardMaterial({ color: 0x2196f3, roughness: 0.1, transparent: true, opacity: 0.8 })));
+        });
+
+        // --- Buildings & Logic (Load vs Generate) ---
+        const boxGeo = new THREE.BoxGeometry(1, 1, 1); boxGeo.translate(0, 0.5, 0); 
+        const buildingMat = new THREE.MeshStandardMaterial({ color: 0xdddddd }); 
+        const buildingsMesh = new THREE.InstancedMesh(boxGeo, buildingMat, 4000); // Plenty buffer
+        buildingsMesh.castShadow = true; buildingsMesh.receiveShadow = true;
+        const dummy = new THREE.Object3D();
+        let bIdx = 0;
+
+        if (isLoadedFromData) {
+            // LOAD FROM SAVED DATA
+            worldState.cityBuildings.forEach(b => {
+                dummy.position.set(b.x, 0, b.z);
+                dummy.scale.set(b.halfWidth*2, b.height, b.halfDepth*2);
+                dummy.rotation.y = random() * 0.1; // Re-use random for visual jitter
+                dummy.updateMatrix();
+                buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
+                worldState.buildingColliders.push(b);
+            });
+            worldState.mountainBuildings.forEach(b => {
+                dummy.position.set(b.x, b.baseHeight, b.z);
+                dummy.rotation.set(0, random()*Math.PI, 0);
+                dummy.scale.set(b.halfWidth*2, b.height - b.baseHeight, b.halfDepth*2);
+                dummy.updateMatrix();
+                buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
+                worldState.buildingColliders.push(b);
+            });
+            // Users are loaded later
+        } else {
+            // GENERATE NEW
+            let bCount = 0, attempts = 0;
+        // City
+        while (bCount < 1300 && attempts < 20000) {
+            attempts++;
+                const angle = random() * Math.PI * 2;
+            const limit = getCityLimit(angle); 
+                const r = Math.sqrt(random()) * limit; 
+            const x = Math.cos(angle) * r;
+            const z = Math.sin(angle) * r;
+            if (isInLake(x, z, 5)) continue;
+            if (r < parkRadius || isOnRoad(x, z)) continue;
+            let distFactor = r / limit; 
+                let height = 6 + 50 * (1 - Math.pow(distFactor, 2)) * random() + random() * 40 * (random() > 0.8 ? 1.5 : 0.5);
+            if (height > 90) height = 90;
+                const w = 4 + random() * 5; const d = 4 + random() * 5;
+            dummy.position.set(x, 0, z); dummy.scale.set(w, height, d);
+                dummy.rotation.y = random() * 0.1; dummy.updateMatrix();
+                buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
+                
+            const bd = {x, z, halfWidth: w/2, halfDepth: d/2, height};
+                worldState.cityBuildings.push(bd);
+                worldState.buildingColliders.push(bd);
+                bCount++;
+        }
+        // Mountain
+            attempts = 0; bCount = 0;
+            while (bCount < 200 && attempts < 10000) {
+            attempts++;
+                const x = (random() - 0.5) * 850; const z = (random() - 0.5) * 850;
+            const dist = Math.sqrt(x*x + z*z); const angle = Math.atan2(z, x);
+            if (dist < getCityLimit(angle) + 20 || isInLake(x, z, 10)) continue;
+            const y = getTerrainHeight(x, z);
+            if (y > 5 && y < MOUNTAIN_BUILDING_CEILING) {
+                     const h = 3 + random() * 3; const w = 3 + random() * 2;
+                     dummy.position.set(x, y, z); dummy.rotation.set(0, random() * Math.PI, 0); 
+                 dummy.scale.set(w, h, w); dummy.updateMatrix();
+                     buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
+                     
+                 const bd = {x, z, halfWidth: w/2, halfDepth: w/2, height: y + h, baseHeight: y};
+                     worldState.mountainBuildings.push(bd);
+                     worldState.buildingColliders.push(bd);
+                     worldState.cabinPositions.push({x, z, r: w + 2});
+                     bCount++;
+            }
+            }
+            // Auto-Save after generation
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(worldState));
+        }
+        scene.add(buildingsMesh);
+
+        // Trees
+        const treeGeo = new THREE.ConeGeometry(2, 6, 6); treeGeo.translate(0, 3, 0);
+        const treeMat = new THREE.MeshStandardMaterial({ color: 0x1b5e20, roughness: 0.9, flatShading: true });
+        const treesMesh = new THREE.InstancedMesh(treeGeo, treeMat, 4000);
+        treesMesh.castShadow = true;
+        let tCount = 0; attempts = 0;
+        // Trees (Re-gen using seed is easiest as there are too many to save comfortably in localstorage)
+        // Since we seeded our random(), the trees will be identical every time.
+        while (tCount < 4000 && attempts < 30000) {
+            attempts++;
+            const x = (random() - 0.5) * 1000; const z = (random() - 0.5) * 1000;
+            const dist = Math.sqrt(x*x + z*z); const angle = Math.atan2(z, x);
+            if (isInLake(x, z, 2)) continue;
+            if (dist < getCityLimit(angle) && dist > parkRadius && !isOnRoad(x, z)) continue; 
+            if (isOnRoad(x, z)) continue;
+            let closeCabin = false;
+            for(let c of worldState.cabinPositions) if ((x-c.x)**2 + (z-c.z)**2 < c.r**2) { closeCabin=true; break; }
+            if (closeCabin) continue;
+            const h = getTerrainHeight(x, z);
+            if (dist < parkRadius || (h > 2 && h < MAX_TREE_HEIGHT)) { 
+                dummy.position.set(x, dist < parkRadius ? 0 : h, z);
+                const s = (dist < parkRadius ? 0.5 : 1) + random() * 0.5;
+                dummy.scale.set(s, s, s); dummy.rotation.set(0, random() * Math.PI, 0);
+                dummy.updateMatrix(); treesMesh.setMatrixAt(tCount++, dummy.matrix);
+            }
+        }
+        scene.add(treesMesh);
+
+        // Wind Particles
+        const particleCount = 2000;
+        const particleGeo = new THREE.BufferGeometry();
+        const pPositions = new Float32Array(particleCount * 3);
+        const pVelocities = []; 
+        for(let i=0; i<particleCount; i++) {
+            pPositions[i*3] = (Math.random()-0.5) * 400; pPositions[i*3+1] = (Math.random()-0.5) * 200 + 100; pPositions[i*3+2] = (Math.random()-0.5) * 400;
+            pVelocities.push(0.5 + Math.random()); 
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+        const windParticles = new THREE.Points(particleGeo, new THREE.PointsMaterial({color: 0x00ffff, size: 1.0, transparent: true, opacity: 0.6, sizeAttenuation: true}));
+        scene.add(windParticles);
+
+        // --- Drone ---
+        const droneGroup = new THREE.Group();
+        const bodyMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+        droneGroup.add(new THREE.Mesh(new THREE.BoxGeometry(2, 0.5, 1), bodyMat));
+        const armGeo = new THREE.BoxGeometry(4, 0.2, 0.2);
+        const arm1 = new THREE.Mesh(armGeo, bodyMat); arm1.rotation.y = Math.PI/4;
+        const arm2 = new THREE.Mesh(armGeo, bodyMat); arm2.rotation.y = -Math.PI/4;
+        droneGroup.add(arm1); droneGroup.add(arm2);
+        const propGeo = new THREE.CylinderGeometry(1.2, 1.2, 0.05, 8);
+        const propMat = new THREE.MeshBasicMaterial({ color: 0x333333, transparent: true, opacity: 0.8 });
+        const props = [];
+        // Map props to logical positions: FL, FR, BL, BR
+        // Based on visual model:
+        // FL: -X, -Z (Front Left in Model Space if -Z is Fwd) -> Index 0?
+        // Let's create specific named props
+        // Front Left (-1.4, -1.4)
+        // Front Right (1.4, -1.4)
+        // Back Left (-1.4, 1.4)
+        // Back Right (1.4, 1.4)
+        const flPos = {x:-1.4, z:-1.4};
+        const frPos = {x:1.4, z:-1.4};
+        const blPos = {x:-1.4, z:1.4};
+        const brPos = {x:1.4, z:1.4};
+        const positionsArr = [flPos, frPos, blPos, brPos];
+        
+        positionsArr.forEach(pos => {
+            const p = new THREE.Mesh(propGeo, propMat);
+            p.position.set(pos.x, 0.3, pos.z);
+            p.add(new THREE.Mesh(new THREE.TorusGeometry(1.3,0.05,4,16), bodyMat).rotateX(Math.PI/2));
+            droneGroup.add(p); props.push(p);
+        });
+        
+        droneGroup.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(0,0,0), 4, 0xff0000));
+        droneGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0), new THREE.Vector3(0,0,0), 4, 0x00ff00));
+        // Changed Z arrow direction to point outward (away from camera) like in new.html
+        droneGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,-1), new THREE.Vector3(0,0,0), 4, 0x0000ff));
+        droneGroup.scale.set(0.25, 0.25, 0.25); 
+        droneGroup.position.set(0, 100, 0); 
+        scene.add(droneGroup);
+
+        // --- PID Controller Class ---
+        class PID {
+            constructor(kp, ki, kd, minOut, maxOut) {
+                this.kp = kp; this.ki = ki; this.kd = kd;
+                this.minOut = minOut; this.maxOut = maxOut;
+                this.integral = 0; this.prevError = 0;
+            }
+            update(target, current, dt) {
+                const error = target - current;
+                this.integral += error * dt;
+                if (this.integral > 5) this.integral = 5;
+                if (this.integral < -5) this.integral = -5;
+                
+                const derivative = (error - this.prevError) / dt;
+                this.prevError = error;
+                
+                let output = this.kp * error + this.ki * this.integral + this.kd * derivative;
+                if (output > this.maxOut) output = this.maxOut;
+                if (output < this.minOut) output = this.minOut;
+                return output;
+            }
+            reset() { this.integral = 0; this.prevError = 0; }
+        }
+
+        // --- Drone Dynamics (PID Mode) ---
+        class DroneDynamics {
+            constructor() {
+                this.mass = 1.0; 
+                this.velocity = new THREE.Vector3();
+                this.angularVelocity = new THREE.Vector3(); 
+                this.euler = new THREE.Euler(0, 0, 0, 'YXZ'); 
+                
+                // Tuning PIDs - Adjusted for better stability
+                this.pitchAnglePID = new PID(3.0, 0.0, 0.1, -4, 4); 
+                this.rollAnglePID = new PID(3.0, 0.0, 0.1, -4, 4);
+                this.pitchRatePID = new PID(1.5, 0.0, 0.08, -0.4, 0.4);
+                this.rollRatePID = new PID(1.5, 0.0, 0.08, -0.4, 0.4);
+                this.yawRatePID = new PID(2.0, 0.0, 0.05, -0.4, 0.4);
+                // Height PID for auto-hover
+                this.heightPID = new PID(0.15, 0.0, 0.05, -0.3, 0.3);
+                // Position hold PIDs for wind compensation
+                this.posXPID = new PID(0.08, 0.0, 0.02, -0.15, 0.15);
+                this.posZPID = new PID(0.08, 0.0, 0.02, -0.15, 0.15);
+                
+                this.targetPosition = new THREE.Vector3();
+                
+                this.baseThrottle = 0.55; // Start with hover throttle
+                this.targetHeight = 100.0; // Default target height
+                this.battery = 100.0; 
+            }
+
+            reset() {
+                this.velocity.set(0,0,0);
+                this.angularVelocity.set(0,0,0);
+                this.euler.set(0,0,0);
+                this.baseThrottle = 0.55;
+                this.targetHeight = 100.0;
+                this.battery = 100;
+                this.pitchAnglePID.reset(); this.rollAnglePID.reset();
+                this.pitchRatePID.reset(); this.rollRatePID.reset(); 
+                this.yawRatePID.reset(); this.heightPID.reset();
+                this.posXPID.reset(); this.posZPID.reset();
+            }
+
+            update(dt, input, wind, droneObj) {
+                // Control logic:
+                // Pitch: W = Nose Down (Neg Pitch), S = Nose Up (Pos Pitch)
+                // Roll: A = Left Bank (Pos Roll around Z in 3js? No, standard is Right Bank positive)
+                // In Three.js with camera behind: 
+                // X is Right. Z is Back. Y is Up.
+                // Pitch around X. Forward (Nose Down) -> Rot -X.
+                // Roll around Z. Right (Right Down) -> Rot -Z. Left (Left Down) -> Rot +Z.
+                
+                const maxAngle = 30 * Math.PI / 180; // Increased from 20° to 30° for better horizontal acceleration
+                let targetPitch = 0;
+                let targetRoll = 0;
+                
+                // Update target position when no horizontal input (for position hold)
+                const hasHorizontalInput = input.w || input.s || input.a || input.d;
+                if (!hasHorizontalInput) {
+                    // Position hold: maintain current position
+                    this.targetPosition.set(droneObj.position.x, this.targetHeight, droneObj.position.z);
+                } else {
+                    // Update target position to current when moving (so it doesn't fight user input)
+                    this.targetPosition.set(droneObj.position.x, this.targetHeight, droneObj.position.z);
+                }
+                
+                if (input.w) {
+                    targetPitch = -maxAngle;
+                    this.targetPosition.z -= 0.5; // Update target as moving forward
+                }
+                if (input.s) {
+                    targetPitch = maxAngle;
+                    this.targetPosition.z += 0.5; // Update target as moving backward
+                }
+                // Swapped a/d control logic
+                if (input.a) {
+                    targetRoll = maxAngle; // Right (Roll +Z) - swapped
+                    this.targetPosition.x += 0.5; // Update target as moving right
+                }
+                if (input.d) {
+                    targetRoll = -maxAngle; // Left (Roll -Z) - swapped
+                    this.targetPosition.x -= 0.5; // Update target as moving left
+                }
+                
+                // Position hold: add pitch/roll corrections to maintain position when no input
+                if (!hasHorizontalInput) {
+                    const posErrorX = this.targetPosition.x - droneObj.position.x;
+                    const posErrorZ = this.targetPosition.z - droneObj.position.z;
+                    // Fixed: PID expects (target, current), where target=0 means no error desired
+                    // posErrorZ is already the error, so we pass it as current with target=0
+                    // This gives error = 0 - posErrorZ = -posErrorZ, but we need positive correction
+                    // So we invert the sign: use -posErrorZ as current to get positive correction
+                    const pitchCorrection = this.posZPID.update(0, -posErrorZ, dt);
+                    const rollCorrection = this.posXPID.update(0, -posErrorX, dt);
+                    targetPitch += pitchCorrection;
+                    targetRoll += rollCorrection;
+                    // Limit corrections to prevent excessive tilt
+                    targetPitch = Math.max(-maxAngle * 0.5, Math.min(maxAngle * 0.5, targetPitch));
+                    targetRoll = Math.max(-maxAngle * 0.5, Math.min(maxAngle * 0.5, targetRoll));
+                }
+                
+                let targetYawRate = 0;
+                if (input.ArrowLeft) targetYawRate = 1.5; // Turn Left (CCW, +Y)
+                if (input.ArrowRight) targetYawRate = -1.5; // Turn Right (CW, -Y)
+
+                // Auto-hover: adjust throttle to maintain target height
+                // Only use manual control if ArrowUp/Down is pressed
+                if (input.ArrowUp) {
+                    this.targetHeight += 3.0 * dt; // Increase target height
+                    // Direct throttle control for immediate response
+                    this.baseThrottle += 0.5 * dt;
+                    // Reset height PID when manually controlling
+                    this.heightPID.integral *= 0.9;
+                    // Limit throttle when ascending
+                    this.baseThrottle = Math.max(0.3, Math.min(0.9, this.baseThrottle));
+                } else if (input.ArrowDown) {
+                    this.targetHeight -= 3.0 * dt; // Decrease target height
+                    // Faster throttle reduction for quicker descent response
+                    this.baseThrottle -= 1.2 * dt; // Increased from 0.5 to 1.2 for faster descent
+                    // Reset height PID when manually controlling
+                    this.heightPID.integral *= 0.9;
+                    // Allow lower throttle when descending (down to 0.1 to allow gravity to work)
+                    this.baseThrottle = Math.max(0.1, Math.min(0.9, this.baseThrottle));
+                } else {
+                    // Auto-hover: use PID to maintain target height
+                    const currentHeight = droneObj.position.y;
+                    const throttleAdjust = this.heightPID.update(this.targetHeight, currentHeight, dt);
+                    this.baseThrottle += throttleAdjust * dt;
+                    // Normal hover throttle range
+                    this.baseThrottle = Math.max(0.3, Math.min(0.9, this.baseThrottle));
+                }
+                
+                this.targetHeight = Math.max(5, Math.min(MAX_ALT - 5, this.targetHeight));
+
+                // Battery effect
+                let effectiveThrottle = this.baseThrottle * (this.battery > 0 ? 1 : 0);
+
+                // PID Update
+                const currentPitch = this.euler.x;
+                const currentRoll = this.euler.z;
+                
+                // When no input, ensure targets are exactly 0 to allow PID to stabilize
+                if (!input.w && !input.s) {
+                    targetPitch = 0;
+                    // Reset pitch PID integral if close to target to prevent windup
+                    if (Math.abs(currentPitch) < 0.01 && Math.abs(this.angularVelocity.x) < 0.1) {
+                        this.pitchAnglePID.integral *= 0.9;
+                    }
+                }
+                if (!input.a && !input.d) {
+                    targetRoll = 0;
+                    // Reset roll PID integral if close to target to prevent windup
+                    if (Math.abs(currentRoll) < 0.01 && Math.abs(this.angularVelocity.z) < 0.1) {
+                        this.rollAnglePID.integral *= 0.9;
+                    }
+                }
+                if (!input.ArrowLeft && !input.ArrowRight) {
+                    targetYawRate = 0;
+                    // Reset yaw PID integral if close to target
+                    if (Math.abs(this.angularVelocity.y) < 0.1) {
+                        this.yawRatePID.integral *= 0.9;
+                    }
+                }
+                
+                const ratePitchSet = this.pitchAnglePID.update(targetPitch, currentPitch, dt);
+                const rateRollSet = this.rollAnglePID.update(targetRoll, currentRoll, dt);
+                
+                const pitchOut = this.pitchRatePID.update(ratePitchSet, this.angularVelocity.x, dt);
+                const rollOut = this.rollRatePID.update(rateRollSet, this.angularVelocity.z, dt);
+                const yawOut = this.yawRatePID.update(targetYawRate, this.angularVelocity.y, dt);
+
+                // Mixing: Quad X
+                // FL (0) CW?  FR (1) CCW?  BL (2) CCW?  BR (3) CW?
+                // Visual positions: 
+                // 0: FL (-x,-z). 1: FR (+x,-z). 2: BL (-x,+z). 3: BR (+x,+z).
+                // Pitch (Nose down -): Back props high, Front props low.
+                // Roll (Right down -): Left props high, Right props low.
+                // Yaw (Right/CW -): CW props low, CCW props high.
+                
+                // Let's assume standard prop directions for stability
+                // 0(FL, CW), 1(FR, CCW), 2(BL, CCW), 3(BR, CW)
+                
+                // PITCH: +Output (Nose Up) -> Front+, Back-
+                // ROLL: +Output (Left Up/Right Down) -> Left+, Right-
+                // YAW: +Output (Nose Left/CCW) -> CW+, CCW-
+                
+                // But wait, yaw definition: +Y is Left (CCW).
+                // To turn Left (CCW), torque must be CCW.
+                // CW props push torque CCW on body.
+                // So increase CW props (0, 3) to yaw Left.
+                
+                // Let's map outputs:
+                // PitchOut positive -> Pitch up. Front (0,1) increase. Back (2,3) decrease.
+                // RollOut positive -> Roll Left (Left down?). 
+                // Wait, targetRoll positive = Left Bank (Left Down).
+                // So +RollOut -> Left Down -> Left(0,2) decrease, Right(1,3) increase?
+                // Let's stick to standard: Roll Right = +X axis rotation? No.
+                // Let's just adjust signs until it feels right.
+                
+                // Current logic:
+                // Pitch: + = Up. Front increase.
+                // Roll: + = Left Bank (Left Down). Left Decrease.
+                // Yaw: + = Left Turn. CW props increase.
+                
+                // FL (0): Front, Left, CW.   Pitch+, Roll-, Yaw+
+                // FR (1): Front, Right, CCW. Pitch+, Roll+, Yaw-
+                // BL (2): Back, Left, CCW.   Pitch-, Roll-, Yaw-
+                // BR (3): Back, Right, CW.   Pitch-, Roll+, Yaw+
+                
+                const t = effectiveThrottle;
+                const p = pitchOut; 
+                const r = rollOut;  
+                const y = yawOut;
+
+                // Motor mixing for Quad X configuration
+                // FL (0): Front Left, CW
+                // FR (1): Front Right, CCW  
+                // BL (2): Back Left, CCW
+                // BR (3): Back Right, CW
+                //
+                // Control logic:
+                // Pitch: +p = Nose Up -> Front (0,1) increase, Back (2,3) decrease
+                // Roll: +r = Right Bank -> Right (1,3) increase, Left (0,2) decrease
+                //        -r = Left Bank -> Left (0,2) increase, Right (1,3) decrease
+                // Yaw: +y = Left Turn (CCW) -> CW props (0,3) increase
+                //
+                // Restored original motor mixing
+                
+                let m0 = t + p - r + y; // FL (Front Left, CW) - Left side, invert r
+                let m1 = t + p + r - y; // FR (Front Right, CCW) - Right side, invert r
+                let m2 = t - p - r - y; // BL (Back Left, CCW) - Left side, invert r
+                let m3 = t - p + r + y; // BR (Back Right, CW) - Right side, invert r
+
+                // Clamp
+                m0 = Math.max(0, Math.min(1, m0));
+                m1 = Math.max(0, Math.min(1, m1));
+                m2 = Math.max(0, Math.min(1, m2));
+                m3 = Math.max(0, Math.min(1, m3));
+
+                // Integrate Physics
+                // Torque
+                // Pitch Torque: (Front - Back)
+                const tX = (m0 + m1) - (m2 + m3);
+                // Roll Torque: (Right - Left) -> (m1+m3) - (m0+m2)
+                const tZ = (m1 + m3) - (m0 + m2); // Right - Left = +Z Torque
+                // Yaw Torque: (CW - CCW) -> (m0+m3) - (m1+m2)
+                // If yawOut > 0 (Left Turn), we need m0, m3 (CW props) to be higher to create CCW body torque.
+                const tY = (m0 + m3) - (m1 + m2); // CW - CCW (creates Yaw Left / CCW Torque)
+
+                const force = 8.0; // torque multiplier (reduced for stability)
+                this.angularVelocity.x += tX * force * dt;
+                this.angularVelocity.y += tY * force * 0.5 * dt;
+                this.angularVelocity.z += tZ * force * dt;
+                
+                // Stronger damping to prevent continuous rotation
+                this.angularVelocity.multiplyScalar(0.92);
+                
+                // Additional damping when no input to prevent drift
+                if (!input.w && !input.s && !input.a && !input.d && !input.ArrowLeft && !input.ArrowRight) {
+                    this.angularVelocity.multiplyScalar(0.98);
+                }
+
+                this.euler.x += this.angularVelocity.x * dt;
+                this.euler.y += this.angularVelocity.y * dt;
+                this.euler.z += this.angularVelocity.z * dt;
+                
+                droneObj.rotation.copy(this.euler);
+
+                // Linear
+                // Adjust thrust based on tilt angle to maintain constant vertical component
+                // When tilted, we need more total thrust to maintain the same vertical lift
+                const pitchAngle = this.euler.x;
+                const rollAngle = this.euler.z;
+                // Calculate tilt factor: cos(pitch) * cos(roll) gives vertical component
+                const tiltFactor = Math.cos(pitchAngle) * Math.cos(rollAngle);
+                // Compensate: if tilted, increase total thrust to maintain vertical component
+                const baseThrust = (m0+m1+m2+m3) * 6.0;
+                const totalThrust = tiltFactor > 0.1 ? baseThrust / Math.max(0.1, tiltFactor) : baseThrust;
+                
+                const thrustVec = new THREE.Vector3(0, totalThrust, 0).applyEuler(this.euler);
+                const gravity = new THREE.Vector3(0, -9.8, 0);
+                
+                // Air drag relative to wind
+                const relVel = this.velocity.clone().sub(wind);
+                const drag = relVel.multiplyScalar(-0.2);
+
+                const acc = new THREE.Vector3().add(thrustVec).add(gravity).add(drag);
+                this.velocity.add(acc.multiplyScalar(dt));
+
+                // Velocity damping when no input to prevent continuous acceleration
+                // Reduced damping to allow position hold to work better
+                const hasHorizontalInputVel = input.w || input.s || input.a || input.d;
+                if (!hasHorizontalInputVel) {
+                    // Lighter damping when position hold is active
+                    const horizontalVel = new THREE.Vector2(this.velocity.x, this.velocity.z);
+                    if (horizontalVel.length() > 0.2) {
+                        // Moderate damping when no input
+                        horizontalVel.multiplyScalar(0.96);
+                        this.velocity.x = horizontalVel.x;
+                        this.velocity.z = horizontalVel.y;
+                    } else {
+                        // Light damping for small velocities
+                        this.velocity.x *= 0.92;
+                        this.velocity.z *= 0.92;
+                    }
+                }
+
+                // Floor constraint
+                if(droneObj.position.y < 0 && this.velocity.y < 0) {
+                    this.velocity.y = 0;
+                    droneObj.position.y = 0;
+                }
+
+                if (this.battery > 0) this.battery -= (m0+m1+m2+m3)*0.05*dt;
+
+                return { motors: [m0, m1, m2, m3] };
+            }
+        }
+
+        // --- Main Vars ---
+        let controlMode = 'SIMPLE'; 
+        const droneDynamics = new DroneDynamics();
+
+        // --- Controls ---
+        const keyMap = { 'KeyW':'w', 'KeyS':'s', 'KeyA':'a', 'KeyD':'d', 'ArrowUp':'ArrowUp', 'ArrowDown':'ArrowDown', 'ArrowLeft':'ArrowLeft', 'ArrowRight':'ArrowRight' };
+        const keys = { w: false, s: false, a: false, d: false, ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+        window.addEventListener('keydown', (e) => { if (keyMap[e.code]) { keys[keyMap[e.code]] = true; e.preventDefault(); } });
+        window.addEventListener('keyup', (e) => { if (keyMap[e.code]) keys[keyMap[e.code]] = false; });
+        window.addEventListener('click', () => window.focus());
+        document.querySelectorAll('button').forEach(btn => btn.addEventListener('click', function() { this.blur(); }));
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+
+        // --- UI Logic ---
+        let viewMode = 'ORBIT'; 
+        const btnOrbit = document.getElementById('btn-orbit');
+        const btnFPV = document.getElementById('btn-fpv');
+        const btnSnap = document.getElementById('btn-snapshot');
+        const btnExport = document.getElementById('btn-export');
+        const btnImport = document.getElementById('btn-import');
+        const btnReset = document.getElementById('btn-reset');
+        const fileInput = document.getElementById('file-input');
+        const btnSimple = document.getElementById('btn-mode-simple');
+        const btnPID = document.getElementById('btn-mode-pid');
+        const modeVal = document.getElementById('ctrl-mode-val');
+        const batVal = document.getElementById('battery-val');
+        const batBar = document.getElementById('battery-bar');
+        const motorVal = document.getElementById('motor-val');
+        const attVal = document.getElementById('att-val');
+
+        function setViewMode(mode) {
+            viewMode = mode;
+            if (mode === 'ORBIT') { btnOrbit.classList.add('active'); btnFPV.classList.remove('active'); controls.enabled = true; }
+            else { btnOrbit.classList.remove('active'); btnFPV.classList.add('active'); controls.enabled = false; }
+        }
+        function setControlMode(mode) {
+            controlMode = mode;
+            // Display FEAR-PID when in CONTROL mode, otherwise show mode name
+            if (mode === 'CONTROL') {
+                modeVal.innerText = 'FEAR-PID';
+            } else {
+            modeVal.innerText = mode;
+            }
+            if (mode === 'SIMPLE') {
+                btnSimple.classList.add('active'); btnPID.classList.remove('active');
+                droneGroup.rotation.set(0, droneGroup.rotation.y, 0); 
+                velocity.set(0,0,0); 
+            } else {
+                btnSimple.classList.remove('active'); btnPID.classList.add('active');
+                droneDynamics.reset();
+                droneDynamics.euler.y = droneGroup.rotation.y; 
+                droneDynamics.velocity.copy(velocity); 
+                droneDynamics.baseThrottle = 0.55;
+                droneDynamics.targetHeight = droneGroup.position.y; // Set target to current height
+                droneDynamics.targetPosition.set(droneGroup.position.x, droneGroup.position.y, droneGroup.position.z); // Set target position
+            }
+        }
+
+        btnOrbit.addEventListener('click', () => setViewMode('ORBIT'));
+        btnFPV.addEventListener('click', () => setViewMode('FPV'));
+        btnSimple.addEventListener('click', () => setControlMode('SIMPLE'));
+        btnPID.addEventListener('click', () => setControlMode('CONTROL')); 
+        btnSnap.addEventListener('click', () => { renderer.render(scene, camera); const l=document.createElement('a'); l.download='sim.png'; l.href=renderer.domElement.toDataURL(); l.click(); });
+
+        // --- Data Management Handlers ---
+        btnExport.addEventListener('click', () => {
+            const dataStr = JSON.stringify(worldState);
+            const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+            const link = document.createElement('a');
+            link.setAttribute('href', dataUri);
+            link.setAttribute('download', 'drone_map_data.json');
+            link.click();
+        });
+
+        btnImport.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const contents = e.target.result;
+                    const parsed = JSON.parse(contents);
+                    // Basic validation
+                    if (parsed.seed && parsed.cityBuildings) {
+                        localStorage.setItem(STORAGE_KEY, contents);
+                        location.reload(); // Reload to apply
+                    } else {
+                        alert("Invalid map data file.");
+                    }
+                } catch(err) { console.error(err); alert("Error parsing file"); }
+            };
+            reader.readAsText(file);
+        });
+
+        btnReset.addEventListener('click', () => {
+            if(confirm("Reset map? This will generate a new random world.")) {
+                localStorage.removeItem(STORAGE_KEY);
+                location.reload();
+            }
+        });
+
+        // --- Users & Labels ---
+        const labelContainer = document.getElementById('labels-container');
+        const userListEl = document.getElementById('user-list');
+        const labels = [];
+        
+        // Generate or Load Users
+        function getSurfacePoint(b){const isRoof=random()<0.3;if(isRoof)return new THREE.Vector3(b.x,b.height+0.5,b.z);else{const s=Math.floor(random()*4);let wx=b.x,wy=b.height,wz=b.z;const base=b.baseHeight||0;wy=base+(b.height-base)*(0.2+random()*0.7);const o=0.5;switch(s){case 0:wz+=b.halfDepth+o;wx+=(random()-0.5)*b.halfWidth;break;case 1:wz-=b.halfDepth+o;wx+=(random()-0.5)*b.halfWidth;break;case 2:wx+=b.halfWidth+o;wz+=(random()-0.5)*b.halfDepth;break;case 3:wx-=b.halfWidth+o;wz+=(random()-0.5)*b.halfDepth;break;}return new THREE.Vector3(wx,wy,wz);}}
+
+        if (!isLoadedFromData) {
+            worldState.cityBuildings.sort(()=>random()-0.5); 
+            for(let i=0;i<4;i++) if(worldState.cityBuildings[i]) worldState.finalUsers.push(getSurfacePoint(worldState.cityBuildings[i]));
+            worldState.mountainBuildings.sort(()=>random()-0.5); 
+            for(let i=0;i<2;i++) if(worldState.mountainBuildings[i]) worldState.finalUsers.push(getSurfacePoint(worldState.mountainBuildings[i]));
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(worldState)); // Save finalized state
+        }
+
+        // Create Labels for Users
+        const userDataElements = [];
+        worldState.finalUsers.forEach((p,i)=>{
+            const id=`USER_${i+1}`; 
+            const d=document.createElement('div'); 
+            d.className='floating-label'; d.innerText=id; 
+            labelContainer.appendChild(d); 
+            labels.push({id,pos:new THREE.Vector3(p.x,p.y,p.z),el:d});
+            
+            const r=document.createElement('div'); r.className='user-coord-row'; 
+            const coordSpan = document.createElement('span');
+            r.appendChild(coordSpan);
+            coordSpan.innerHTML = `${id} [${p.x.toFixed(0)},${p.y.toFixed(0)},${p.z.toFixed(0)}]`;
+            userListEl.appendChild(r);
+            userDataElements.push({row: r, coordSpan, pos: new THREE.Vector3(p.x, p.y, p.z)});
+        });
+
+        // --- Wireless Communication Calculation ---
+        function checkLineOfSight(dronePos, userPos) {
+            // Raycast from drone to user to check for obstacles
+            const direction = new THREE.Vector3().subVectors(userPos, dronePos);
+            const distance = direction.length();
+            direction.normalize();
+            
+            // Denser sampling for better accuracy (every 2 meters)
+            const sampleInterval = 2.0;
+            const samples = Math.floor(distance / sampleInterval) + 1;
+            let obstacleDistance = 0; // Total distance blocked by obstacles
+            let terrainBlocked = 0;
+            let buildingBlocked = 0;
+            
+            for (let i = 1; i < samples; i++) {
+                const t = i / samples;
+                const checkPos = new THREE.Vector3().lerpVectors(dronePos, userPos, t);
+                
+                // Check terrain
+                const terrainH = getTerrainHeight(checkPos.x, checkPos.z);
+                if (checkPos.y < terrainH + 1.5) {
+                    terrainBlocked += sampleInterval;
+                    obstacleDistance += sampleInterval;
+                    continue;
+                }
+                
+                // Check buildings - consider building thickness
+                for (let b of worldState.buildingColliders) {
+                    const dx = Math.abs(checkPos.x - b.x);
+                    const dz = Math.abs(checkPos.z - b.z);
+                    const inX = dx < b.halfWidth + 2;
+                    const inZ = dz < b.halfDepth + 2;
+                    const inY = checkPos.y < (b.height + 1);
+                    
+                    if (inX && inZ && inY) {
+                        // Calculate how deep we are in the building
+                        // This gives us a sense of building thickness
+                        const depthX = Math.max(0, b.halfWidth + 2 - dx);
+                        const depthZ = Math.max(0, b.halfDepth + 2 - dz);
+                        const avgDepth = (depthX + depthZ) / 2;
+                        
+                        // Weight the obstacle by building thickness
+                        // Thicker buildings block more signal
+                        const thicknessFactor = Math.min(1.0, avgDepth / 5.0); // Normalize to 0-1
+                        buildingBlocked += sampleInterval * (1.0 + thicknessFactor * 0.5); // 1.0x to 1.5x penalty
+                        obstacleDistance += sampleInterval * (1.0 + thicknessFactor * 0.5);
+                        break;
+                    }
+                }
+            }
+            
+            const totalPathLength = distance;
+            const clearRatio = Math.max(0, 1 - (obstacleDistance / totalPathLength));
+            
+            return { 
+                obstacles: obstacleDistance, 
+                samples, 
+                clearRatio,
+                terrainBlocked,
+                buildingBlocked
+            };
+        }
+
+        function calculateSignalStrength(distance, clearRatio) {
+            // Simplified signal strength model based on distance and obstacles
+            // More practical model: signal strength decreases with distance and obstacles
+            
+            const minDistance = 1.0; // Minimum distance to avoid division by zero
+            const safeDistance = Math.max(distance, minDistance);
+            
+            // Base signal strength model (slightly stricter):
+            // - Close range (<50m): 90-98%
+            // - Medium range (50-200m): 65-90%
+            // - Long range (200-500m): 35-65%
+            // - Very long range (>500m): 0-35%
+            
+            // Distance-based signal strength (0-1 scale)
+            let distanceSignal = 1.0;
+            if (safeDistance < 50) {
+                // Close range: 90-98% (reduced from 95-100%)
+                distanceSignal = 0.90 + 0.08 * (1 - safeDistance / 50);
+            } else if (safeDistance < 200) {
+                // Medium range: 65-90% (reduced from 70-95%)
+                distanceSignal = 0.65 + 0.25 * (1 - (safeDistance - 50) / 150);
+            } else if (safeDistance < 500) {
+                // Long range: 35-65% (reduced from 40-70%)
+                distanceSignal = 0.35 + 0.30 * (1 - (safeDistance - 200) / 300);
+            } else {
+                // Very long range: 0-35% (reduced from 0-40%)
+                distanceSignal = Math.max(0, 0.35 * (1 - (safeDistance - 500) / 500));
+            }
+            
+            // Obstacle attenuation: reduce signal based on obstacle ratio and thickness
+            // Full obstruction reduces signal by up to 70% (increased from 60%)
+            // Thicker buildings cause more attenuation
+            const obstaclePenalty = (1 - clearRatio) * 0.70;
+            const finalSignal = distanceSignal * (1 - obstaclePenalty);
+            
+            // Convert to percentage
+            const signalPercent = Math.max(0, Math.min(100, finalSignal * 100));
+            
+            // Calculate dBm for display (approximate conversion)
+            // Typical range: -30 dBm (excellent) to -90 dBm (poor)
+            const signalStrength = -30 - (1 - finalSignal) * 60;
+            
+            return {
+                signalStrength: signalStrength.toFixed(1),
+                signalPercent: signalPercent.toFixed(0),
+                quality: signalPercent > 70 ? 'EXCELLENT' : signalPercent > 50 ? 'GOOD' : signalPercent > 30 ? 'FAIR' : signalPercent > 10 ? 'POOR' : 'NONE'
+            };
+        }
+
+        // --- Physics Vars (Simple Mode) ---
+        const REAL_MAX_ACCEL = 25.0; const FAKE_DISPLAY_ACCEL = 5.28; const MAX_SPEED_HORIZ = 60.0; const MAX_SPEED_VERT = 12.0; const DRAG = 0.5; 
+        let velocity = new THREE.Vector3(); 
+
+        // Wind - Modified for better stability
+        function getWindAt(pos, time) {
+            const scale = 0.002; const timeScale = 0.08; // Slightly slower time variation
+            const bx = simplex.noise2D(pos.x*0.001,time*0.05); const bz = simplex.noise2D(pos.z*0.001+100,time*0.05);
+            let wind = new THREE.Vector3(bx,0,bz).normalize().multiplyScalar(4.5); // Slightly reduced base wind
+            // Reduced turbulence for smoother wind
+            wind.x+=simplex.noise3D(pos.x*scale,pos.z*scale,time*timeScale)*1.5; // Reduced from 2
+            wind.z+=simplex.noise3D(pos.x*scale+100,pos.z*scale+100,time*timeScale)*1.5; // Reduced from 2
+            const th=getTerrainHeight(pos.x,pos.z); let occ=1.0;
+            if(pos.y<th+20) occ*=0.3+0.7*Math.max(0,(pos.y-th)/20);
+            if(Math.sqrt(pos.x*pos.x+pos.z*pos.z)<150&&pos.y<60) occ*=0.1+0.4*(pos.y/60);
+            wind.multiplyScalar(occ); 
+            // Reduced max wind speed for better stability
+            if(wind.length()>10) wind.multiplyScalar(10/wind.length()); // Reduced from 12
+            return wind;
+        }
+        function getCardinalDirection(d){const dirs=['N','NE','E','SE','S','SW','W','NW'];return dirs[Math.round(((d%=360)<0?d+360:d)/45)%8];}
+
+        // --- Refs ---
+        const uiRefs = {
+            pos: document.getElementById('pos-val'),
+            speed: document.getElementById('speed-val'),
+            accel: document.getElementById('accel-val'),
+            wind: document.getElementById('wind-val'),
+            col: document.getElementById('collision-status'),
+            state: document.getElementById('agent-state'),
+            warn: document.getElementById('warning-msg')
+        };
+
+        // --- Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+            const dt = Math.min(clock.getDelta(), 0.1); 
+            const time = clock.getElapsedTime();
+
+            const wind = getWindAt(droneGroup.position, time);
+            let ad = Math.atan2(wind.z, wind.x)*(180/Math.PI); 
+            uiRefs.wind.innerText = `${wind.length().toFixed(1)} m/s ${getCardinalDirection((90-ad+360)%360)}`;
+
+            // State Update Logic
+            if (controlMode === 'SIMPLE') {
+                let turn = 0; if(keys.ArrowLeft){droneGroup.rotation.y+=2*dt;turn=1;} if(keys.ArrowRight){droneGroup.rotation.y-=2*dt;turn=1;}
+                const yaw = droneGroup.rotation.y;
+                
+                // FIXED DIRECTIONS: Forward is -Z (Into Screen), Right is +X
+                const fwd = new THREE.Vector3(0,0,-1).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+                const rgt = new THREE.Vector3(1,0,0).applyAxisAngle(new THREE.Vector3(0,1,0),yaw);
+                
+                let acc = new THREE.Vector3();
+                if(keys.w) acc.add(fwd); if(keys.s) acc.sub(fwd); 
+                if(keys.a) acc.sub(rgt); if(keys.d) acc.add(rgt);
+                
+                if(acc.lengthSq()>0) acc.normalize().multiplyScalar(REAL_MAX_ACCEL);
+                let vacc = 0; if(keys.ArrowUp) vacc=REAL_MAX_ACCEL; if(keys.ArrowDown) vacc=-REAL_MAX_ACCEL;
+                
+                velocity.x+=acc.x*dt; velocity.z+=acc.z*dt; velocity.y+=vacc*dt;
+                const drag = velocity.clone().sub(wind).multiplyScalar(-DRAG*dt); velocity.add(drag);
+                
+                // Clamp
+                const hVel = new THREE.Vector2(velocity.x, velocity.z);
+                if (hVel.length() > MAX_SPEED_HORIZ) { hVel.normalize().multiplyScalar(MAX_SPEED_HORIZ); velocity.x = hVel.x; velocity.z = hVel.y; }
+                if (velocity.y > MAX_SPEED_VERT) velocity.y = MAX_SPEED_VERT; if (velocity.y < -MAX_SPEED_VERT) velocity.y = -MAX_SPEED_VERT;
+
+                uiRefs.accel.innerText = ((acc.length()+Math.abs(vacc))/REAL_MAX_ACCEL*FAKE_DISPLAY_ACCEL).toFixed(2)+" m/s²";
+                
+                // Visual Tilt - Fixed to match Control mode: forward movement = negative pitch (nose down)
+                const lv = velocity.clone().applyAxisAngle(new THREE.Vector3(0,1,0), -yaw);
+                droneGroup.rotation.x = lv.z * 0.02; droneGroup.rotation.z = -lv.x * 0.02;
+
+                if (acc.lengthSq()>0 || Math.abs(vacc)>0 || turn>0) { uiRefs.state.innerText="MOVING"; uiRefs.state.className="ui-value status-orange"; }
+                else { uiRefs.state.innerText="STABLE"; uiRefs.state.className="ui-value status-green"; }
+
+                motorVal.innerText = "N/A"; 
+                batVal.innerText = "100%"; batBar.style.width = "100%";
+                attVal.innerText = "0°, 0°";
+
+            } else {
+                const dyn = droneDynamics.update(dt, keys, wind, droneGroup);
+                velocity.copy(droneDynamics.velocity);
+                const motors = dyn.motors.map(m => Math.round(m*100));
+                motorVal.innerText = motors.map(m => m.toString().padStart(3, ' ')).join(" ");
+                batVal.innerText = droneDynamics.battery.toFixed(1) + "%";
+                batBar.style.width = droneDynamics.battery + "%";
+                if(droneDynamics.battery < 20) batBar.style.background = "#d32f2f";
+                else batBar.style.background = "#388e3c";
+                const pDeg = (droneDynamics.euler.x * 180 / Math.PI).toFixed(0);
+                const rDeg = (droneDynamics.euler.z * 180 / Math.PI).toFixed(0);
+                attVal.innerText = `${pDeg}°, ${rDeg}°`;
+                uiRefs.accel.innerText = "---"; 
+                if(keys.w||keys.s||keys.a||keys.d||keys.ArrowLeft||keys.ArrowRight||keys.ArrowUp||keys.ArrowDown) {
+                     uiRefs.state.innerText="MOVING"; uiRefs.state.className="ui-value status-orange";
+                } else {
+                     uiRefs.state.innerText="HOVER/STABLE"; uiRefs.state.className="ui-value status-green";
+                }
+            }
+
+            let nextPos = droneGroup.position.clone().add(velocity.clone().multiplyScalar(dt));
+            let col = false;
+
+            if(Math.abs(nextPos.x)>MAP_HALF_SIZE){velocity.x=0;nextPos.x=Math.sign(nextPos.x)*MAP_HALF_SIZE;}
+            if(Math.abs(nextPos.z)>MAP_HALF_SIZE){velocity.z=0;nextPos.z=Math.sign(nextPos.z)*MAP_HALF_SIZE;}
+            if(nextPos.y>MAX_ALT){velocity.y=0;nextPos.y=MAX_ALT;}
+            
+            const dPx=MAP_HALF_SIZE-droneGroup.position.x; const dNx=droneGroup.position.x+MAP_HALF_SIZE;
+            const dPz=MAP_HALF_SIZE-droneGroup.position.z; const dNz=droneGroup.position.z+MAP_HALF_SIZE;
+            const dCeil=MAX_ALT-droneGroup.position.y;
+            const f=50, m=0.6;
+            airWallGroup.children[0].material.opacity=dPz<f?m*(1-dPz/f):0; airWallGroup.children[1].material.opacity=dNz<f?m*(1-dNz/f):0;
+            airWallGroup.children[2].material.opacity=dPx<f?m*(1-dPx/f):0; airWallGroup.children[3].material.opacity=dNx<f?m*(1-dNx/f):0;
+            airWallGroup.children[4].material.opacity=dCeil<f?m*(1-dCeil/f):0;
+
+            function checkCol(p){const h=getTerrainHeight(p.x,p.z);if(p.y<h+1.5)return true;for(let b of worldState.buildingColliders){if(Math.abs(p.x-b.x)<b.halfWidth+2&&Math.abs(p.z-b.z)<b.halfDepth+2&&p.y<b.height+1)return true;}return false;}
+
+            if(checkCol({x:nextPos.x,y:droneGroup.position.y,z:droneGroup.position.z})){velocity.x*=-0.5;col=true;}else droneGroup.position.x=nextPos.x;
+            if(checkCol({x:droneGroup.position.x,y:droneGroup.position.y,z:droneGroup.position.z+velocity.z*dt})){velocity.z*=-0.5;col=true;}else droneGroup.position.z+=velocity.z*dt;
+            if(checkCol({x:droneGroup.position.x,y:droneGroup.position.y+velocity.y*dt,z:droneGroup.position.z})){
+                const h=getTerrainHeight(droneGroup.position.x,droneGroup.position.z);
+                droneGroup.position.y=Math.max(droneGroup.position.y,h+1.5); velocity.y=0; col=true;
+            }else droneGroup.position.y+=velocity.y*dt;
+
+            if(controlMode==='CONTROL' && droneGroup.position.y < getTerrainHeight(droneGroup.position.x, droneGroup.position.z)+2) {
+                if(velocity.y < -1) velocity.y *= -0.2; 
+            }
+
+            if(col){uiRefs.col.innerText="TRUE";uiRefs.col.classList.add('status-red');uiRefs.warn.style.display='block';}
+            else{uiRefs.col.innerText="FALSE";uiRefs.col.classList.remove('status-red');uiRefs.warn.style.display='none';}
+
+            const throt = (controlMode==='SIMPLE') ? (velocity.length()*0.1 + (keys.ArrowUp?0.5:0)) : (droneDynamics.baseThrottle);
+            props.forEach((p,i)=>p.rotation.y+=(0.5+throt)*(i%2===0?1:-1));
+
+            uiRefs.pos.innerText = `${droneGroup.position.x.toFixed(0)}, ${droneGroup.position.y.toFixed(0)}, ${droneGroup.position.z.toFixed(0)}`;
+            uiRefs.speed.innerText = velocity.length().toFixed(1) + " m/s";
+
+            if(viewMode==='FPV'){
+                const off = new THREE.Vector3(0,6,12).applyAxisAngle(new THREE.Vector3(0,1,0),droneGroup.rotation.y);
+                const la = new THREE.Vector3(0,0,-20).applyAxisAngle(new THREE.Vector3(0,1,0),droneGroup.rotation.y);
+                camera.position.lerp(droneGroup.position.clone().add(off),0.1);
+                camera.lookAt(droneGroup.position.clone().add(la));
+            } else { controls.target.copy(droneGroup.position); controls.update(); }
+
+            const cPos=camera.position; const parr=windParticles.geometry.attributes.position.array;
+            for(let i=0;i<particleCount;i++){
+                let px=parr[i*3],py=parr[i*3+1],pz=parr[i*3+2];
+                const pw=getWindAt(new THREE.Vector3(px,py,pz),time); const sm=pVelocities[i];
+                px+=pw.x*dt*sm*2; py+=pw.y*dt*sm; pz+=pw.z*dt*sm*2;
+                if(px>cPos.x+200)px-=400; if(px<cPos.x-200)px+=400;
+                if(pz>cPos.z+200)pz-=400; if(pz<cPos.z-200)pz+=400;
+                if(py<0)py+=100; if(py>200)py-=200;
+                if(Math.abs(px)>MAP_HALF_SIZE)px=-px; if(Math.abs(pz)>MAP_HALF_SIZE)pz=-pz;
+                parr[i*3]=px; parr[i*3+1]=py; parr[i*3+2]=pz;
+            }
+            windParticles.geometry.attributes.position.needsUpdate=true;
+
+            labels.forEach(l=>{
+                const p=l.pos.clone(); p.project(camera);
+                const x=(p.x*.5+.5)*window.innerWidth; const y=(p.y*-.5+.5)*window.innerHeight;
+                if(p.z<1&&x>0&&x<window.innerWidth&&y>0&&y<window.innerHeight){
+                    l.el.style.transform=`translate(-50%,-100%) translate(${x}px,${y}px)`; l.el.style.display='block';
+                    const d=camera.position.distanceTo(l.pos); l.el.style.opacity=Math.max(0.2,1-d/300); l.el.style.zIndex=Math.floor(1000-d);
+                }else l.el.style.display='none';
+            });
+
+            // Update wireless communication data for each user
+            userDataElements.forEach((userData, i) => {
+                const dronePos = droneGroup.position;
+                const userPos = userData.pos;
+                const distance = dronePos.distanceTo(userPos);
+                
+                // Check line of sight
+                const los = checkLineOfSight(dronePos, userPos);
+                
+                // Calculate signal strength
+                const signal = calculateSignalStrength(distance, los.clearRatio);
+                
+                // Update display - combine everything in one line
+                const qualityColor = signal.quality === 'EXCELLENT' ? '#388e3c' : 
+                                    signal.quality === 'GOOD' ? '#689f38' :
+                                    signal.quality === 'FAIR' ? '#f57c00' :
+                                    signal.quality === 'POOR' ? '#d32f2f' : '#757575';
+                
+                // Update the coordinate span to include all info in one line
+                const userId = `USER_${i+1}`;
+                const userPosStr = `[${userData.pos.x.toFixed(0)},${userData.pos.y.toFixed(0)},${userData.pos.z.toFixed(0)}]`;
+                userData.coordSpan.innerHTML = `${userId} ${userPosStr} <span style="color:${qualityColor}">| ${distance.toFixed(0)} units | Signal: ${signal.signalPercent}% | ${signal.quality}</span>`;
+                userData.row.title = `Signal: ${signal.signalStrength} dBm | Obstacles: ${los.obstacles}/${los.samples}`;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth/window.innerHeight; camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight); renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+        });
+        animate();
+    </script>
+</body>
+</html>
