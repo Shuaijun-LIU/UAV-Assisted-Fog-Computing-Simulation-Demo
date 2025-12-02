@@ -588,7 +588,8 @@
         // Storage Key
         const STORAGE_KEY = 'drone_sim_data_v1';
 
-        // Check Local Storage
+        // Load Environment Data from drone_map_data.json file (auto-load)
+        // Check localStorage first (if previously loaded), then try file
         const savedData = localStorage.getItem(STORAGE_KEY);
         let isLoadedFromData = false;
 
@@ -600,18 +601,51 @@
                 if (parsed.seed && parsed.cityBuildings) {
                     worldState = parsed;
                     isLoadedFromData = true;
+                    seedRandom(worldState.seed);
+                    console.log("Loaded environment data from localStorage");
                 }
             } catch (e) {
                 console.error("Failed to load saved data", e);
             }
         }
-
-        // Apply Seed
+        
+        // If not loaded from localStorage, try to load from file
         if (!isLoadedFromData) {
-            // Generate new seed if no data found
-            worldState.seed = Math.random() * 100000;
+            fetch('drone_map_data.json')
+                .then(response => {
+                    if (response.ok) {
+                        return response.json();
+                    }
+                    throw new Error('drone_map_data.json not found');
+                })
+                .then(data => {
+                    console.log("Loading environment data from drone_map_data.json...");
+                    // Validate essential fields
+                    if (data.seed && data.cityBuildings) {
+                        worldState = data;
+                        isLoadedFromData = true;
+                        // Save to localStorage for next time
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                        // Apply seed
+                        seedRandom(worldState.seed);
+                        // Reload scene to apply environment data
+                        location.reload();
+                    } else {
+                        console.warn("Invalid environment data format in drone_map_data.json");
+                        // Generate new seed if invalid
+                        worldState.seed = Math.random() * 100000;
+                        seedRandom(worldState.seed);
+                    }
+                })
+                .catch(err => {
+                    console.log("drone_map_data.json not found, will generate new environment");
+                    // Generate new seed if no data found
+                    worldState.seed = Math.random() * 100000;
+                    seedRandom(worldState.seed);
+                });
+        } else {
+            // Already loaded from localStorage, seed already applied
         }
-        seedRandom(worldState.seed);
 
         // --- 1. Scene Initialization ---
         const clock = new THREE.Clock(); 

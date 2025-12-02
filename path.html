@@ -212,7 +212,11 @@
                         // Save to localStorage for next time
                         localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(data));
                         // Apply seed
-        seedRandom(worldState.seed);
+                        seedRandom(worldState.seed);
+                        // Validate compatibility if path data is already loaded
+                        if (pathDataLoaded) {
+                            validateDataCompatibility();
+                        }
                         // Reload scene to apply environment data
                         location.reload();
                     } else {
@@ -234,6 +238,27 @@
         let pathDataLoaded = false;
         // Declare waypoints early to avoid ReferenceError when loadPathDataIntoState is called
         let waypoints = [];
+        
+        // Function to validate data compatibility between map and path data
+        function validateDataCompatibility() {
+            if (pathData && pathData.mapSeed && worldState && worldState.seed) {
+                if (pathData.mapSeed !== worldState.seed) {
+                    console.warn(`⚠️ WARNING: Path data seed (${pathData.mapSeed}) does not match current map seed (${worldState.seed}).`);
+                    console.warn("⚠️ Path may not align correctly with current map!");
+                    console.warn("⚠️ Please regenerate path data using generate_path.py with the current map data.");
+                    // Optionally show a non-blocking warning to user
+                    setTimeout(() => {
+                        console.warn("💡 Tip: Export current map data from index.html, then run generate_path.py to create matching path data.");
+                    }, 1000);
+                } else {
+                    console.log("✓ Path data seed matches map seed - data is compatible");
+                }
+            } else if (pathData && !pathData.mapSeed) {
+                console.warn("⚠️ Path data does not contain mapSeed field. Cannot verify compatibility.");
+                console.warn("⚠️ Please regenerate path data using the latest generate_path.py.");
+            }
+        }
+        
         const loadPathDataIntoState = (data) => {
             console.log("Loading path data...", data);
             if (data.paths || data.waypoints || data.experiments) {
@@ -246,6 +271,10 @@
                     console.log(`Loaded ${waypoints.length} waypoints`);
                 }
                 pathDataLoaded = true;
+                
+                // Validate compatibility after loading (map data should be loaded by now)
+                validateDataCompatibility();
+                
                 // Check if we need to restart current experiment to apply new data
                 // (If scene is already running)
                 if (window.appMode) {
@@ -267,6 +296,7 @@
                     console.log("Found path data in localStorage, using it");
                     loadPathDataIntoState(parsed);
                     hasLocalStorageData = true;
+                    // validateDataCompatibility is already called inside loadPathDataIntoState
                     // Auto-start with first experiment in static mode after data is loaded
                     if (!window.appMode) {
                         setupATC('STATIC');
@@ -287,6 +317,7 @@
             .then(data => {
                 console.log("Loaded drone_path_data.json from file");
                 loadPathDataIntoState(data);
+                // validateDataCompatibility is already called inside loadPathDataIntoState
                 // Auto-start with first experiment in static mode after data is loaded
                 if (!window.appMode) {
                     setupATC('STATIC');
@@ -661,8 +692,10 @@
         document.getElementById('btn-export-path').onclick = () => {
              // Ensure we have the latest waypoints in the export
              const currentData = {
+                 mapSeed: worldState.seed, // Include map seed for validation
                  waypoints: waypoints.map(v => ({x: v.x, y: v.y, z: v.z})),
                  paths: pathData.paths || [],
+                 userHoverMarkers: pathData.userHoverMarkers || [],
                  experiments: pathData.experiments || []
              };
              
@@ -777,10 +810,62 @@
         // --- 4. EXPERIMENTS ---
         let appMode = 'FREE'; const expGroup = new THREE.Group(); scene.add(expGroup);
         let expDrones = []; const startPt = new THREE.Vector3(0, 100, 0);
-        // Use waypoints from pathData if available, otherwise use default
+        
+        // Helper function to check collision with building (matches generate_path.py Building.check_collision)
+        function checkPointCollisionWithBuilding(pos) {
+            const buffer = 10.0; // Same as generate_path.py
+            for (let b of worldState.buildingColliders) {
+                const halfW = b.halfWidth || 0;
+                const halfD = b.halfDepth || 0;
+                const bHeight = b.height || 0;
+                const bY = b.baseHeight || 0;
+                
+                // Calculate AABB bounds (same as generate_path.py)
+                const min_x = b.x - halfW - buffer;
+                const max_x = b.x + halfW + buffer;
+                const min_z = b.z - halfD - buffer;
+                const max_z = b.z + halfD + buffer;
+                const min_y = bY;
+                const max_y = bHeight + buffer; // height is total height, max_y = height + buffer
+                
+                // Check collision (same logic as Python)
+                if (min_x <= pos.x && pos.x <= max_x &&
+                    min_z <= pos.z && pos.z <= max_z &&
+                    min_y <= pos.y && pos.y <= max_y) {
+                    return { colliding: true, building: b, max_y: max_y };
+                }
+            }
+            return { colliding: false };
+        }
+        
+        // Generate waypoints with same logic as generate_path.py
+        function generateDefaultWaypoints() {
+            const waypointsList = [startPt.clone()]; // START_POINT
+            
+            // For each finalUsers, create hover point above user
+            for (let u of worldState.finalUsers) {
+                const userPos = new THREE.Vector3(u.x, u.y, u.z);
+                
+                // Hover ABOVE user (same as generate_path.py)
+                const targetPos = userPos.clone();
+                targetPos.y += 20.0; // Increased hover height
+                
+                // Final check for target (same as generate_path.py)
+                const collision = checkPointCollisionWithBuilding(targetPos);
+                if (collision.colliding) {
+                    targetPos.y = collision.max_y + 10.0;
+                }
+                
+                waypointsList.push(targetPos);
+            }
+            
+            return waypointsList;
+        }
+        
+        // Use waypoints from pathData if available, otherwise generate default waypoints
         // Note: waypoints is already declared earlier, update it only if not already set from pathData
         if (!waypoints || waypoints.length === 0) {
-            waypoints = [startPt, ...worldState.finalUsers.map(u=>new THREE.Vector3(u.x,u.y,u.z))];
+            waypoints = generateDefaultWaypoints();
         }
 
         function resetSim() {
@@ -1102,9 +1187,11 @@
         window.onkeydown=e=>{if(keys.hasOwnProperty(e.key))keys[e.key]=1;}; window.onkeyup=e=>{if(keys.hasOwnProperty(e.key))keys[e.key]=0;};
         const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true;
         const vel = new THREE.Vector3();
+        let frameCount = 0;
 
         function animate() {
             requestAnimationFrame(animate); const dt=clock.getDelta();
+            frameCount++;
 
             if(appMode.includes('FLY')) {
                 expDrones.forEach(d => {
@@ -1175,7 +1262,7 @@
             });
 
             // Update Signal Data in UI periodically (every 10 frames approx)
-            if (renderer.info.render.frame % 10 === 0) {
+            if (frameCount % 10 === 0) {
                 let dp = playerDrone.position;
                 // If in fly mode, try to use the tracked drone position (e.g. FEAR or ACS-DS)
                 if (appMode.includes('FLY') && expDrones.length > 0) {
