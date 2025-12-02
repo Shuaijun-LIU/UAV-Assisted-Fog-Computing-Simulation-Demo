@@ -328,8 +328,7 @@
                 // Only show error if we don't have localStorage data
                 if (!hasLocalStorageData) {
                     console.error("No path data available. Please:");
-                    console.error("1. Generate drone_path_data.json using generate_path.py, OR");
-                    console.error("2. Import path data using the IMPORT PATH button");
+                    console.error("Import path data using the IMPORT PATH button");
                     alert("Error: drone_path_data.json not found and no cached data available.\n\nPlease:\n1. Generate it using generate_path.py, OR\n2. Import path data using the IMPORT PATH button");
                 } else {
                     console.log("Using cached path data from localStorage");
