@@ -783,7 +783,7 @@
 
         // --- Ground & Water & Objects (Simplified for brevity, logic same as before) ---
         const planeSize = MAP_SIZE;
-        const vertexCount = 200; 
+        const vertexCount = 500; // Increased resolution to prevent floating buildings
         const geometry = new THREE.PlaneGeometry(planeSize, planeSize, vertexCount, vertexCount);
         geometry.rotateX(-Math.PI / 2);
         const positions = geometry.attributes.position;
@@ -844,9 +844,13 @@
                 worldState.buildingColliders.push(b);
             });
             worldState.mountainBuildings.forEach(b => {
-                dummy.position.set(b.x, b.baseHeight, b.z);
+                // Visually extend base downwards significantly to ensure it penetrates terrain
+                // Using a large offset (e.g. 80m) to cover steep slopes/cliffs
+                const visualBase = b.baseHeight - 80;
+                dummy.position.set(b.x, visualBase, b.z);
                 dummy.rotation.set(0, random()*Math.PI, 0);
-                dummy.scale.set(b.halfWidth*2, b.height - b.baseHeight, b.halfDepth*2);
+                // Height needs to increase by the same amount we lowered the base
+                dummy.scale.set(b.halfWidth*2, b.height - visualBase, b.halfDepth*2);
                 dummy.updateMatrix();
                 buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
                 worldState.buildingColliders.push(b);
@@ -892,7 +896,10 @@
                  dummy.scale.set(w, h, w); dummy.updateMatrix();
                      buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
                      
-                 const bd = {x, z, halfWidth: w/2, halfDepth: w/2, height: y + h, baseHeight: y};
+                 // Save with extended base for logic, but generation just records theoretical base
+                 // We apply visual fix in loading. Or we can just record it deeper here.
+                 // Let's record deeper base to be safe for future exports.
+                 const bd = {x, z, halfWidth: w/2, halfDepth: w/2, height: y + h, baseHeight: y - 10};
                      worldState.mountainBuildings.push(bd);
                      worldState.buildingColliders.push(bd);
                      worldState.cabinPositions.push({x, z, r: w + 2});

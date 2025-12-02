@@ -264,7 +264,11 @@
             if (data.paths || data.waypoints || data.experiments) {
                 pathData = data;
                 // Save to localStorage for next time
-                localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(data));
+                try {
+                    localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(data));
+                } catch (e) {
+                    console.warn("LocalStorage quota exceeded. Data is loaded in memory only.");
+                }
                 // Update waypoints if available
                 if (data.waypoints && data.waypoints.length > 0) {
                     waypoints = data.waypoints.map(w => new THREE.Vector3(w.x, w.y, w.z));
@@ -534,10 +538,12 @@
                 worldState.buildingColliders.push(b);
             });
             worldState.mountainBuildings.forEach(b => {
-                dummy.position.set(b.x, b.baseHeight, b.z);
+                // Visually extend base downwards significantly to ensure it penetrates terrain
+                const visualBase = b.baseHeight - 80; 
+                dummy.position.set(b.x, visualBase, b.z);
                 dummy.rotation.set(0, random()*Math.PI, 0);
-                dummy.scale.set(b.halfWidth*2, b.height - b.baseHeight, b.halfDepth*2);
-            dummy.updateMatrix();
+                dummy.scale.set(b.halfWidth*2, b.height - visualBase, b.halfDepth*2);
+                dummy.updateMatrix();
                 buildingsMesh.setMatrixAt(bIdx++, dummy.matrix);
                 worldState.buildingColliders.push(b);
             });
@@ -961,6 +967,14 @@
             droneGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,-1), new THREE.Vector3(0,0,0), 4, 0x0000ff));
             // Larger scale for FPV mode visibility
             droneGroup.scale.set(0.4, 0.4, 0.4);
+
+            // Add high-contrast wireframe box for visibility
+            const boundsGeo = new THREE.BoxGeometry(5, 2, 5); // Slightly larger than drone
+            const edges = new THREE.EdgesGeometry(boundsGeo);
+            const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, linewidth: 2 });
+            const wireframe = new THREE.LineSegments(edges, lineMat);
+            droneGroup.add(wireframe);
+
             return droneGroup;
         }
         
@@ -1085,19 +1099,16 @@
                 pidExp.paths.forEach((pathPoints, idx) => {
                     const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     const c = new THREE.CatmullRomCurve3(pts);
-                    // Main path thicker and fully opaque, others thin and transparent
-                    const isMain = idx === 0;
-                    createTube(c, 0xff0000, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
-                    if (isMain) cP = c;
+                    createTube(c, 0xff0000, 0.6, 0.15);
+                    if (idx === 0) cP = c;
                 });
 
                 // FEAR-PID Paths (Blue)
                 fearExp.paths.forEach((pathPoints, idx) => {
                     const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     const c = new THREE.CatmullRomCurve3(pts);
-                    const isMain = idx === 0;
-                    createTube(c, 0x0088ff, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
-                    if (isMain) cF = c;
+                    createTube(c, 0x0088ff, 0.6, 0.15);
+                    if (idx === 0) cF = c;
                 });
             } else if (pidExp && fearExp && pidExp.points && fearExp.points) {
                 console.log("Using pre-calculated ATC paths from JSON (Single-path)");
@@ -1167,27 +1178,24 @@
                  acsExp.paths.forEach((pathPoints, idx) => {
                     const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     const c = new THREE.CatmullRomCurve3(pts);
-                    const isMain = idx === 0;
-                    createTube(c, 0xffff00, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
-                    if (isMain) c1 = c;
+                    createTube(c, 0xffff00, 0.6, 0.15);
+                    if (idx === 0) c1 = c;
                 });
 
                 // TD3 (Green)
                 td3Exp.paths.forEach((pathPoints, idx) => {
                     const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     const c = new THREE.CatmullRomCurve3(pts);
-                    const isMain = idx === 0;
-                    createTube(c, 0x00ff00, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
-                    if (isMain) c2 = c;
+                    createTube(c, 0x00ff00, 0.6, 0.15);
+                    if (idx === 0) c2 = c;
                 });
 
                 // ACS-DS (Blue)
                 acsDsExp.paths.forEach((pathPoints, idx) => {
                     const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
                     const c = new THREE.CatmullRomCurve3(pts);
-                    const isMain = idx === 0;
-                    createTube(c, 0x0088ff, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
-                    if (isMain) c3 = c;
+                    createTube(c, 0x0088ff, 0.6, 0.15);
+                    if (idx === 0) c3 = c;
                 });
             } else if (acsExp && td3Exp && acsDsExp && acsExp.points) {
                 console.log("Using pre-calculated Path Planning paths from JSON (Single-path)");
@@ -1237,6 +1245,7 @@
         const controls = new THREE.OrbitControls(camera, renderer.domElement); controls.enableDamping=true;
         const vel = new THREE.Vector3();
         let frameCount = 0;
+        let currentLookAt = new THREE.Vector3(); // For smooth camera lookAt
 
         function animate() {
             requestAnimationFrame(animate); const dt=clock.getDelta();
@@ -1247,7 +1256,11 @@
                     // Slower movement speed for better visibility
                     d.t += dt * 0.015; if(d.t>1) d.t=0;
                     const p = d.c.getPointAt(d.t); const np = d.c.getPointAt(Math.min(d.t+0.01,1));
-                    d.m.position.copy(p);
+                    
+                    // Offset drone visually to ride ON TOP of path
+                    const visualPos = p.clone();
+                    visualPos.y += 2.0;
+                    d.m.position.copy(visualPos);
                     
                     // For drone models, set rotation to face direction of travel
                     const direction = new THREE.Vector3().subVectors(np, p);
@@ -1263,8 +1276,18 @@
                     if(d.isT) {
                         const fwd=new THREE.Vector3().subVectors(np,p).normalize();
                         if(fwd.lengthSq()>0.1) {
-                            const cp=p.clone().add(fwd.multiplyScalar(-40)).add(new THREE.Vector3(0,20,0));
-                            camera.position.lerp(cp,0.1); camera.lookAt(p);
+                            // Further camera distance (80 units behind)
+                            const cp=p.clone().add(fwd.multiplyScalar(-80)).add(new THREE.Vector3(0,30,0));
+                            
+                            // Smooth camera position
+                            camera.position.lerp(cp, 0.05); 
+                            
+                            // Smooth camera lookAt
+                            // Initialize currentLookAt if zero (first frame)
+                            if (currentLookAt.lengthSq() < 0.1) currentLookAt.copy(p);
+                            
+                            currentLookAt.lerp(p, 0.1); // Smoothly interpolate look target
+                            camera.lookAt(currentLookAt);
                         }
                     }
                 });
@@ -1386,13 +1409,11 @@
                     const parsed = JSON.parse(contents);
                     // Basic validation
                     if (parsed.paths || parsed.waypoints || parsed.experiments) {
-                        // Save to localStorage (browser can't write files directly)
-                        // This will be used on next page load
-                        localStorage.setItem(PATH_STORAGE_KEY, contents);
                         // Update current session data
                         loadPathDataIntoState(parsed);
-                        alert("Path data imported successfully. Page will reload to apply changes.");
-                        location.reload();
+                        alert("Path data imported successfully (Memory Only).");
+                        // Initialize visualization directly
+                        setupATC('STATIC');
                     } else {
                         alert("Invalid path data file.");
                     }
