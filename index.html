@@ -1460,6 +1460,22 @@
 
         // --- Data Management Handlers ---
         btnExport.addEventListener('click', () => {
+            // Generate Terrain Height Map for Export
+            const terrainMap = [];
+            const step = 10; // Sample every 10 meters to keep file size reasonable
+            const half = MAP_HALF_SIZE;
+            
+            for (let x = -half; x <= half; x += step) {
+                for (let z = -half; z <= half; z += step) {
+                    const h = getTerrainHeight(x, z);
+                    // Only record if height is significant (above water/ground)
+                    if (h > 2.0) {
+                        terrainMap.push({x: Math.round(x), z: Math.round(z), y: parseFloat(h.toFixed(1))});
+                    }
+                }
+            }
+            worldState.terrainMap = terrainMap;
+
             const dataStr = JSON.stringify(worldState);
             const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
             const link = document.createElement('a');

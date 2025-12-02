@@ -971,9 +971,9 @@
             const h = new THREE.Mesh(new THREE.ConeGeometry(0.8,2,16), m); h.rotation.x=Math.PI/2; h.position.z=1;
             g.add(s); g.add(h); return g;
         }
-        function createTube(curve, color, op=0.8) {
-            const geo = new THREE.TubeGeometry(curve, 400, 0.6, 6, false);
-            const mat = new THREE.MeshBasicMaterial({color, transparent:true, opacity:op});
+        function createTube(curve, color, op=0.8, radius=0.6) {
+            const geo = new THREE.TubeGeometry(curve, 400, radius, 6, false);
+            const mat = new THREE.MeshLambertMaterial({color, transparent:true, opacity:op});
             expGroup.add(new THREE.Mesh(geo, mat));
         }
 
@@ -1078,12 +1078,34 @@
             const pidExp = pathData.experiments ? pathData.experiments.find(e => e.name === 'PID') : null;
             const fearExp = pathData.experiments ? pathData.experiments.find(e => e.name === 'FEAR-PID') : null;
             
-            if (pidExp && fearExp && pidExp.points && fearExp.points) {
-                console.log("Using pre-calculated ATC paths from JSON");
+            if (pidExp && fearExp && pidExp.paths && fearExp.paths) {
+                console.log("Using pre-calculated ATC paths from JSON (Multi-path)");
+                
+                // PID Paths (Red)
+                pidExp.paths.forEach((pathPoints, idx) => {
+                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const c = new THREE.CatmullRomCurve3(pts);
+                    // Main path thicker and fully opaque, others thin and transparent
+                    const isMain = idx === 0;
+                    createTube(c, 0xff0000, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
+                    if (isMain) cP = c;
+                });
+
+                // FEAR-PID Paths (Blue)
+                fearExp.paths.forEach((pathPoints, idx) => {
+                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const c = new THREE.CatmullRomCurve3(pts);
+                    const isMain = idx === 0;
+                    createTube(c, 0x0088ff, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
+                    if (isMain) cF = c;
+                });
+            } else if (pidExp && fearExp && pidExp.points && fearExp.points) {
+                console.log("Using pre-calculated ATC paths from JSON (Single-path)");
                 const ptsP = pidExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
                 const ptsF = fearExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
                 cP = new THREE.CatmullRomCurve3(ptsP);
                 cF = new THREE.CatmullRomCurve3(ptsF);
+                createTube(cF,0x0088ff); createTube(cP,0xff0000);
             } else {
                 console.log("Generating ATC paths on the fly");
                 const baseC = genPath(waypoints, 'ACS-DS'); const clean = baseC.getPoints(300);
@@ -1091,10 +1113,9 @@
                     const np=p.clone(); if(i>20&&i<280){ np.y+=Math.sin(i*0.1)*8; np.x+=Math.sin(i*0.05)*12; } return np;
                 });
                 cF=new THREE.CatmullRomCurve3(clean); cP=new THREE.CatmullRomCurve3(noisy);
+                createTube(cF,0x0088ff); createTube(cP,0xff0000);
             }
 
-            createTube(cF,0x0088ff); createTube(cP,0xff0000);
-            
             // Add markers for each user hover point on the path (from JSON)
             if (pathData.userHoverMarkers && pathData.userHoverMarkers.length > 0) {
                 pathData.userHoverMarkers.forEach(marker => {
@@ -1139,14 +1160,44 @@
             const td3Exp = pathData.experiments ? pathData.experiments.find(e => e.name === 'TD3') : null;
             const acsDsExp = pathData.experiments ? pathData.experiments.find(e => e.name === 'ACS-DS') : null;
             
-            if (acsExp && td3Exp && acsDsExp && acsExp.points && td3Exp.points && acsDsExp.points) {
-                console.log("Using pre-calculated Path Planning paths from JSON");
+            if (acsExp && td3Exp && acsDsExp && acsExp.paths) {
+                console.log("Using pre-calculated Path Planning paths from JSON (Multi-path)");
+                
+                 // ACS (Yellow)
+                 acsExp.paths.forEach((pathPoints, idx) => {
+                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const c = new THREE.CatmullRomCurve3(pts);
+                    const isMain = idx === 0;
+                    createTube(c, 0xffff00, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
+                    if (isMain) c1 = c;
+                });
+
+                // TD3 (Green)
+                td3Exp.paths.forEach((pathPoints, idx) => {
+                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const c = new THREE.CatmullRomCurve3(pts);
+                    const isMain = idx === 0;
+                    createTube(c, 0x00ff00, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
+                    if (isMain) c2 = c;
+                });
+
+                // ACS-DS (Blue)
+                acsDsExp.paths.forEach((pathPoints, idx) => {
+                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const c = new THREE.CatmullRomCurve3(pts);
+                    const isMain = idx === 0;
+                    createTube(c, 0x0088ff, isMain ? 0.9 : 0.4, isMain ? 0.5 : 0.1);
+                    if (isMain) c3 = c;
+                });
+            } else if (acsExp && td3Exp && acsDsExp && acsExp.points) {
+                console.log("Using pre-calculated Path Planning paths from JSON (Single-path)");
                 const pts1 = acsExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
                 const pts2 = td3Exp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
                 const pts3 = acsDsExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
                 c1 = new THREE.CatmullRomCurve3(pts1);
                 c2 = new THREE.CatmullRomCurve3(pts2);
                 c3 = new THREE.CatmullRomCurve3(pts3);
+                createTube(c1,0xffff00,0.6); createTube(c2,0x00ff00,0.6); createTube(c3,0x0088ff,0.9);
             } else {
                 console.log("Generating Path Planning paths on the fly");
                 const rawC1 = genPath(waypoints,'ACS'); 
@@ -1156,9 +1207,8 @@
                 const pts1 = rawC1.getPoints(300); c1 = new THREE.CatmullRomCurve3(pts1);
                 const pts2 = rawC2.getPoints(300); c2 = new THREE.CatmullRomCurve3(pts2);
                 const pts3 = rawC3.getPoints(300); c3 = new THREE.CatmullRomCurve3(pts3);
+                createTube(c1,0xffff00,0.6); createTube(c2,0x00ff00,0.6); createTube(c3,0x0088ff,0.9);
             }
-
-            createTube(c1,0xffff00,0.6); createTube(c2,0x00ff00,0.6); createTube(c3,0x0088ff,0.9);
             
             // Add markers for each user hover point on the path (from JSON)
             if (pathData.userHoverMarkers && pathData.userHoverMarkers.length > 0) {
