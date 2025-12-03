@@ -32,6 +32,7 @@ out/
 # Project specific files
 path.txt
 generate_path.py
+smooth_pid_paths.py
 
 # Python
 __pycache__/
