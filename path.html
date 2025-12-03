@@ -178,61 +178,82 @@
         const PATH_STORAGE_KEY = 'drone_path_data_v1';
 
         // Load Environment Data from drone_map_data.json file (auto-load)
-        // Check localStorage first (if previously loaded), then try file
-        const importedEnvData = localStorage.getItem(ENV_STORAGE_KEY);
-        if (importedEnvData) {
-            try {
-                const parsed = JSON.parse(importedEnvData);
-                if (parsed.seed && parsed.cityBuildings) {
-                    worldState = parsed;
-                    isLoadedFromData = true;
-                    seedRandom(worldState.seed);
-                    console.log("Loaded environment data from localStorage");
-                }
-            } catch (e) {
-                console.error("Failed to load environment data from localStorage", e);
-            }
-        }
+        // IMPORTANT: Always try file first to get latest data, then fallback to localStorage
+        let isLoadedFromData = false;
         
-        // If not loaded from localStorage, try to load from file
-        if (!isLoadedFromData) {
-            fetch('drone_map_data.json')
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
+        // Try to load from file first (most up-to-date)
+        fetch('drone_map_data.json')
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('drone_map_data.json not found');
+            })
+            .then(data => {
+                console.log("Loading environment data from drone_map_data.json...");
+                // Validate essential fields
+                if (data.seed && data.cityBuildings) {
+                    // Check if this is a different seed than what we have
+                    const seedChanged = worldState.seed && worldState.seed !== data.seed;
+                    worldState = data;
+                    isLoadedFromData = true;
+                    // Save to localStorage for next time
+                    localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(data));
+                    // Apply seed
+                    seedRandom(worldState.seed);
+                    
+                    // If seed changed and we have path data, validate compatibility
+                    if (seedChanged && pathDataLoaded) {
+                        validateDataCompatibility();
                     }
-                    throw new Error('drone_map_data.json not found');
-                })
-                .then(data => {
-                    console.log("Loading environment data from drone_map_data.json...");
-                    // Validate essential fields
-                    if (data.seed && data.cityBuildings) {
-                        worldState = data;
-                        isLoadedFromData = true;
-                        // Save to localStorage for next time
-                        localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(data));
-                        // Apply seed
-                        seedRandom(worldState.seed);
-                        // Validate compatibility if path data is already loaded
-                        if (pathDataLoaded) {
-                            validateDataCompatibility();
-                        }
-                        // Reload scene to apply environment data
+                    
+                    // Only reload if we already have a scene initialized (to apply new terrain/buildings)
+                    // Otherwise, let the scene initialize normally
+                    if (window.appMode) {
+                        console.log("Map data updated, reloading scene...");
                         location.reload();
+                    }
+                } else {
+                    console.warn("Invalid environment data format in drone_map_data.json");
+                    // Fallback to localStorage or generate new
+                    tryLoadFromLocalStorage();
+                }
+            })
+            .catch(err => {
+                console.log("drone_map_data.json not found, trying localStorage...");
+                // Fallback to localStorage
+                tryLoadFromLocalStorage();
+            });
+        
+        // Fallback function to load from localStorage
+        function tryLoadFromLocalStorage() {
+            const importedEnvData = localStorage.getItem(ENV_STORAGE_KEY);
+            if (importedEnvData) {
+                try {
+                    const parsed = JSON.parse(importedEnvData);
+                    if (parsed.seed && parsed.cityBuildings) {
+                        worldState = parsed;
+                        isLoadedFromData = true;
+                        seedRandom(worldState.seed);
+                        console.log("Loaded environment data from localStorage");
                     } else {
-                        console.warn("Invalid environment data format in drone_map_data.json");
                         // Generate new seed if invalid
                         worldState.seed = Math.random() * 100000;
                         seedRandom(worldState.seed);
                     }
-                })
-                .catch(err => {
-                    console.log("drone_map_data.json not found, will generate new environment");
+                } catch (e) {
+                    console.error("Failed to load environment data from localStorage", e);
                     // Generate new seed if no data found
                     worldState.seed = Math.random() * 100000;
                     seedRandom(worldState.seed);
-                });
+                }
+            } else {
+                // Generate new seed if no data found
+                worldState.seed = Math.random() * 100000;
+                seedRandom(worldState.seed);
+            }
         }
+        
 
         // Load Path Data - Only from drone_path_data.json
         let pathDataLoaded = false;
@@ -243,13 +264,12 @@
         function validateDataCompatibility() {
             if (pathData && pathData.mapSeed && worldState && worldState.seed) {
                 if (pathData.mapSeed !== worldState.seed) {
-                    console.warn(`⚠️ WARNING: Path data seed (${pathData.mapSeed}) does not match current map seed (${worldState.seed}).`);
-                    console.warn("⚠️ Path may not align correctly with current map!");
-                    console.warn("⚠️ Please regenerate path data using generate_path.py with the current map data.");
-                    // Optionally show a non-blocking warning to user
+                    const msg = `⚠️ WARNING: Path data seed (${pathData.mapSeed}) does not match current map seed (${worldState.seed}).\n\nPath may not align correctly with current map!\n\nPlease:\n1. Export current map data from index.html\n2. Run generate_path.py to regenerate path data\n3. Reload this page`;
+                    console.warn(msg);
+                    // Show alert to user
                     setTimeout(() => {
-                        console.warn("💡 Tip: Export current map data from index.html, then run generate_path.py to create matching path data.");
-                    }, 1000);
+                        alert(msg);
+                    }, 500);
                 } else {
                     console.log("✓ Path data seed matches map seed - data is compatible");
                 }
