@@ -1262,31 +1262,33 @@
                     visualPos.y += 2.0;
                     d.m.position.copy(visualPos);
                     
-                    // For drone models, set rotation to face direction of travel
+                    // Smooth Rotation using Quaternion Slerp
                     const direction = new THREE.Vector3().subVectors(np, p);
-                    if (direction.lengthSq() > 0.01) {
+                    if (direction.lengthSq() > 0.001) {
                         direction.normalize();
-                        // Calculate yaw angle (rotation around Y axis)
-                        const yaw = Math.atan2(direction.x, direction.z);
-                        // Calculate pitch angle (rotation around X axis) based on vertical component
-                        const pitch = -Math.asin(Math.max(-1, Math.min(1, direction.y)));
-                        d.m.rotation.set(pitch, yaw, 0);
+                        const mx = new THREE.Matrix4().lookAt(direction, new THREE.Vector3(0,0,0), new THREE.Vector3(0,1,0));
+                        const qt = new THREE.Quaternion().setFromRotationMatrix(mx);
+                        // Slerp current rotation towards target rotation (factor 0.1 for smoothness)
+                        if (!d.m.quaternion) d.m.quaternion = new THREE.Quaternion();
+                        d.m.quaternion.slerp(qt, 0.1);
                     }
                     
                     if(d.isT) {
                         const fwd=new THREE.Vector3().subVectors(np,p).normalize();
                         if(fwd.lengthSq()>0.1) {
                             // Further camera distance (80 units behind)
+                            // Look ahead point: p + fwd * 20
+                            const lookTarget = p.clone().add(fwd.clone().multiplyScalar(20));
+                            
                             const cp=p.clone().add(fwd.multiplyScalar(-80)).add(new THREE.Vector3(0,30,0));
                             
                             // Smooth camera position
                             camera.position.lerp(cp, 0.05); 
                             
                             // Smooth camera lookAt
-                            // Initialize currentLookAt if zero (first frame)
-                            if (currentLookAt.lengthSq() < 0.1) currentLookAt.copy(p);
+                            if (currentLookAt.lengthSq() < 0.1) currentLookAt.copy(lookTarget);
                             
-                            currentLookAt.lerp(p, 0.1); // Smoothly interpolate look target
+                            currentLookAt.lerp(lookTarget, 0.05); // Smoothly interpolate look target
                             camera.lookAt(currentLookAt);
                         }
                     }
