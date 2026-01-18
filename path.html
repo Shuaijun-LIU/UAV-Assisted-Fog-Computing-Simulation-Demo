@@ -177,82 +177,101 @@
         const ENV_STORAGE_KEY = 'drone_sim_data_v1'; // Same as index.html
         const PATH_STORAGE_KEY = 'drone_path_data_v1';
 
-        // Load Environment Data from drone_map_data.json file (auto-load)
-        // IMPORTANT: Always try file first to get latest data, then fallback to localStorage
+        // Load Environment Data
+        // IMPORTANT:
+        // - The terrain/buildings are generated immediately below in this script.
+        // - To make the rendered scene match drone_map_data.json, we must seed from cached data first,
+        //   then (if the on-disk file differs) reload once after updating the cache.
         let isLoadedFromData = false;
-        
-        // Try to load from file first (most up-to-date)
-        fetch('drone_map_data.json')
-            .then(response => {
-                if (response.ok) {
-                    return response.json();
-                }
-                throw new Error('drone_map_data.json not found');
-            })
-            .then(data => {
-                console.log("Loading environment data from drone_map_data.json...");
-                // Validate essential fields
-                if (data.seed && data.cityBuildings) {
-                    // Check if this is a different seed than what we have
-                    const seedChanged = worldState.seed && worldState.seed !== data.seed;
-                    worldState = data;
+
+        // 1) Try sessionStorage/localStorage first (sync) so the seed is applied before SimplexNoise is constructed.
+        // sessionStorage is used as a fallback when localStorage quota is exceeded.
+        const sessionEnvKey = `${ENV_STORAGE_KEY}__session`;
+        const sessionEnvData = sessionStorage.getItem(sessionEnvKey);
+        if (sessionEnvData) {
+            try {
+                const parsed = JSON.parse(sessionEnvData);
+                if (parsed.seed && parsed.cityBuildings) {
+                    worldState = parsed;
                     isLoadedFromData = true;
-                    // Save to localStorage for next time
-                    localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(data));
-                    // Apply seed
                     seedRandom(worldState.seed);
-                    
-                    // If seed changed and we have path data, validate compatibility
-                    if (seedChanged && pathDataLoaded) {
-                        validateDataCompatibility();
-                    }
-                    
-                    // Only reload if we already have a scene initialized (to apply new terrain/buildings)
-                    // Otherwise, let the scene initialize normally
-                    if (window.appMode) {
-                        console.log("Map data updated, reloading scene...");
-                        location.reload();
-                    }
-                } else {
-                    console.warn("Invalid environment data format in drone_map_data.json");
-                    // Fallback to localStorage or generate new
-                    tryLoadFromLocalStorage();
+                    console.log("Loaded environment data from sessionStorage");
                 }
-            })
-            .catch(err => {
-                console.log("drone_map_data.json not found, trying localStorage...");
-                // Fallback to localStorage
-                tryLoadFromLocalStorage();
-            });
-        
-        // Fallback function to load from localStorage
-        function tryLoadFromLocalStorage() {
-            const importedEnvData = localStorage.getItem(ENV_STORAGE_KEY);
-            if (importedEnvData) {
+            } catch (e) {
+                console.warn("Failed to parse sessionStorage environment data, will fetch from file.");
+            }
+            // Consume one-shot session cache after attempting to load it.
+            sessionStorage.removeItem(sessionEnvKey);
+        }
+
+        if (!isLoadedFromData) {
+            const cachedEnvData = localStorage.getItem(ENV_STORAGE_KEY);
+            if (cachedEnvData) {
                 try {
-                    const parsed = JSON.parse(importedEnvData);
+                    const parsed = JSON.parse(cachedEnvData);
                     if (parsed.seed && parsed.cityBuildings) {
                         worldState = parsed;
                         isLoadedFromData = true;
                         seedRandom(worldState.seed);
                         console.log("Loaded environment data from localStorage");
-                    } else {
-                        // Generate new seed if invalid
-                        worldState.seed = Math.random() * 100000;
-                        seedRandom(worldState.seed);
                     }
                 } catch (e) {
-                    console.error("Failed to load environment data from localStorage", e);
-                    // Generate new seed if no data found
-                    worldState.seed = Math.random() * 100000;
-                    seedRandom(worldState.seed);
+                    console.warn("Failed to parse cached environment data, will fetch from file.");
                 }
-            } else {
-                // Generate new seed if no data found
-                worldState.seed = Math.random() * 100000;
-                seedRandom(worldState.seed);
             }
         }
+
+        // 2) Always try to fetch the file (latest source of truth). If it differs, update cache + reload.
+        fetch('drone_map_data.json', { cache: 'no-store' })
+            .then(response => {
+                if (response.ok) return response.json();
+                throw new Error('drone_map_data.json not found');
+            })
+            .then(data => {
+                console.log("Loading environment data from drone_map_data.json...");
+                if (data.seed && data.cityBuildings) {
+                    const seedChanged = !isLoadedFromData || worldState.seed !== data.seed;
+                    if (seedChanged) {
+                        worldState = data;
+                        isLoadedFromData = true;
+                        let cached = false;
+                        try {
+                            localStorage.setItem(ENV_STORAGE_KEY, JSON.stringify(data));
+                            cached = true;
+                        } catch (e) {
+                            console.warn("Failed to cache environment data to localStorage; using sessionStorage instead.");
+                            try {
+                                sessionStorage.setItem(sessionEnvKey, JSON.stringify(data));
+                                cached = true;
+                            } catch (e2) {
+                                console.warn("Failed to cache environment data to sessionStorage.");
+                            }
+                        }
+                        seedRandom(worldState.seed);
+                        // Only reload if caching succeeded, otherwise we'd risk a reload loop.
+                        if (cached) {
+                            const reloadKey = `env_reload_done_${data.seed}`;
+                            if (!sessionStorage.getItem(reloadKey)) {
+                                sessionStorage.setItem(reloadKey, '1');
+                                console.log("Map data updated, reloading scene...");
+                                location.reload();
+                            }
+                        }
+                    }
+                } else {
+                    console.warn("Invalid environment data format in drone_map_data.json");
+                }
+            })
+            .catch(err => {
+                if (!isLoadedFromData) {
+                    // No file + no cache: fall back to a random seed.
+                    worldState.seed = Math.random() * 100000;
+                    seedRandom(worldState.seed);
+                    console.log("drone_map_data.json not found; using a random seed.");
+                } else {
+                    console.log("drone_map_data.json not found; using cached environment data.");
+                }
+            });
         
 
         // Load Path Data - Only from drone_path_data.json
@@ -262,14 +281,13 @@
         
         // Function to validate data compatibility between map and path data
         function validateDataCompatibility() {
+            // Only validate once the environment has been loaded from cached/file data.
+            // (Before that, worldState.seed may still be the default Date.now() and can trigger false warnings.)
+            if (!isLoadedFromData) return;
             if (pathData && pathData.mapSeed && worldState && worldState.seed) {
                 if (pathData.mapSeed !== worldState.seed) {
                     const msg = `⚠️ WARNING: Path data seed (${pathData.mapSeed}) does not match current map seed (${worldState.seed}).\n\nPath may not align correctly with current map!\n\nPlease:\n1. Export current map data from index.html\n2. Run generate_path.py to regenerate path data\n3. Reload this page`;
                     console.warn(msg);
-                    // Show alert to user
-                    setTimeout(() => {
-                        alert(msg);
-                    }, 500);
                 } else {
                     console.log("✓ Path data seed matches map seed - data is compatible");
                 }
@@ -283,12 +301,8 @@
             console.log("Loading path data...", data);
             if (data.paths || data.waypoints || data.experiments) {
                 pathData = data;
-                // Save to localStorage for next time
-                try {
-                    localStorage.setItem(PATH_STORAGE_KEY, JSON.stringify(data));
-                } catch (e) {
-                    console.warn("LocalStorage quota exceeded. Data is loaded in memory only.");
-                }
+                // Note: We intentionally do NOT auto-cache path data to localStorage because
+                // drone_path_data.json can be very large and exceed browser quota.
                 // Update waypoints if available
                 if (data.waypoints && data.waypoints.length > 0) {
                     waypoints = data.waypoints.map(w => new THREE.Vector3(w.x, w.y, w.z));
@@ -310,30 +324,10 @@
             }
         };
 
-        // Try to load from localStorage first (if previously loaded)
-        const importedPathData = localStorage.getItem(PATH_STORAGE_KEY);
-        let hasLocalStorageData = false;
-        if (importedPathData) {
-            try {
-                const parsed = JSON.parse(importedPathData);
-                if (parsed.paths || parsed.waypoints || parsed.experiments) {
-                    console.log("Found path data in localStorage, using it");
-                    loadPathDataIntoState(parsed);
-                    hasLocalStorageData = true;
-                    // validateDataCompatibility is already called inside loadPathDataIntoState
-                    // Auto-start with first experiment in static mode after data is loaded
-                    if (!window.appMode) {
-                        setupATC('STATIC');
-                    }
-                }
-            } catch (e) {
-                console.error("Failed to load path data from localStorage", e);
-            }
-        }
-
         // Also try to load from file (will update localStorage if successful)
-        // This allows file to override localStorage if it exists
-        fetch('drone_path_data.json')
+        // This is the primary source of truth for GitHub Pages deployments.
+        let hasLocalStorageData = false;
+        fetch('drone_path_data.json', { cache: 'no-store' })
             .then(response => {
                 if (response.ok) return response.json();
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -349,14 +343,26 @@
             })
             .catch(err => {
                 console.warn("Failed to load drone_path_data.json from file:", err);
-                // Only show error if we don't have localStorage data
-                if (!hasLocalStorageData) {
-                    console.error("No path data available. Please:");
-                    console.error("Import path data using the IMPORT PATH button");
-                    alert("Error: drone_path_data.json not found and no cached data available.\n\nPlease:\n1. Generate it using generate_path.py, OR\n2. Import path data using the IMPORT PATH button");
-                } else {
-                    console.log("Using cached path data from localStorage");
+                // Fallback to localStorage only if user previously imported a smaller JSON
+                const importedPathData = localStorage.getItem(PATH_STORAGE_KEY);
+                if (importedPathData) {
+                    try {
+                        const parsed = JSON.parse(importedPathData);
+                        if (parsed.paths || parsed.waypoints || parsed.experiments) {
+                            console.log("Using cached path data from localStorage");
+                            loadPathDataIntoState(parsed);
+                            hasLocalStorageData = true;
+                            if (!window.appMode) setupATC('STATIC');
+                            return;
+                        }
+                    } catch (e) {
+                        console.error("Failed to load path data from localStorage", e);
+                    }
                 }
+
+                console.error("No path data available. Please:");
+                console.error("Import path data using the IMPORT PATH button");
+                alert("Error: drone_path_data.json not found and no cached data available.\n\nPlease:\n1. Generate it using generate_path.py, OR\n2. Import path data using the IMPORT PATH button");
             });
 
 
