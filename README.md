@@ -4,7 +4,7 @@ This demo is an interactive mini demonstration created for the paper **"Energy-A
 
 ## Background
 
-This demo is built with **Three.js** and serves as a simplified, interactive version of our complete simulation system implemented in **NVIDIA Isaac Gym Sim**. To facilitate browser-based demonstration and interaction, we have simplified the following aspects:
+This demo is built with **Three.js** and serves as a simplified, interactive version of our complete simulation system implemented in **NVIDIA Isaac Gym (Isaac Sim)**. To facilitate browser-based demonstration and interaction, we have simplified the following aspects:
 
 - **Motion Control**: Uses a simplified FEAR-PID attitude control algorithm
 - **Environmental Variables**: Only wind field effects on flight are retained
