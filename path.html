@@ -1083,6 +1083,115 @@
                 return TUBE_SEGMENTS_MIN;
             }
         }
+
+        const DISPLAY_PATH_MAX_POINTS = 900;
+        const DISPLAY_SMOOTH_ITERATIONS = 1;
+        const DISPLAY_SMOOTH_LOCK_RADIUS = 10.0;
+        const DISPLAY_SMOOTH_FORCE_RADIUS = 25.0;
+        const DISPLAY_SMOOTH_MAX_SHIFT = 6.0;
+
+        function getDisplaySmoothingCenters() {
+            const centers = [];
+            if (Array.isArray(waypoints)) {
+                waypoints.forEach(w => {
+                    if (w && isFinite(w.x) && isFinite(w.z)) centers.push({ x: w.x, z: w.z });
+                });
+            }
+            if (pathData && Array.isArray(pathData.userHoverMarkers)) {
+                pathData.userHoverMarkers.forEach(m => {
+                    if (m && isFinite(m.x) && isFinite(m.z)) centers.push({ x: m.x, z: m.z });
+                });
+            }
+            return centers;
+        }
+
+        function isNearCenters(p, centers, radius) {
+            const r2 = radius * radius;
+            for (const c of centers) {
+                const dx = p.x - c.x;
+                const dz = p.z - c.z;
+                if (dx * dx + dz * dz <= r2) return true;
+            }
+            return false;
+        }
+
+        function decimatePoints(pts, maxPoints, centers) {
+            if (!Array.isArray(pts) || pts.length <= maxPoints) return pts;
+            const stride = Math.max(1, Math.ceil((pts.length - 1) / (maxPoints - 1)));
+
+            const idx = new Set();
+            for (let i = 0; i < pts.length; i += stride) idx.add(i);
+            idx.add(0); idx.add(pts.length - 1);
+
+            if (Array.isArray(centers) && centers.length > 0) {
+                const forceR2 = DISPLAY_SMOOTH_FORCE_RADIUS * DISPLAY_SMOOTH_FORCE_RADIUS;
+                for (const c of centers) {
+                    let bestI = 0;
+                    let bestD2 = Infinity;
+                    for (let i = 0; i < pts.length; i++) {
+                        const dx = pts[i].x - c.x;
+                        const dz = pts[i].z - c.z;
+                        const d2 = dx * dx + dz * dz;
+                        if (d2 < bestD2) { bestD2 = d2; bestI = i; }
+                    }
+                    if (bestD2 <= forceR2) idx.add(bestI);
+                }
+            }
+
+            const sorted = Array.from(idx).sort((a, b) => a - b);
+            return sorted.map(i => pts[i]);
+        }
+
+        function enforceDisplayClearance(p) {
+            try {
+                const minY = getTerrainHeight(p.x, p.z) + 5.0;
+                if (p.y < minY) p.y = minY;
+                const col = checkPointCollisionWithBuilding(p);
+                if (col && col.colliding) {
+                    p.y = Math.max(p.y, col.max_y + 10.0);
+                }
+            } catch (e) {
+                // Best-effort only
+            }
+        }
+
+        function smoothDisplayPoints(pts) {
+            if (!Array.isArray(pts) || pts.length < 3) return pts;
+            const centers = getDisplaySmoothingCenters();
+
+            let cur = decimatePoints(pts, DISPLAY_PATH_MAX_POINTS, centers);
+            for (let iter = 0; iter < DISPLAY_SMOOTH_ITERATIONS; iter++) {
+                const next = [cur[0]];
+                for (let i = 1; i < cur.length - 1; i++) {
+                    const p0 = cur[i - 1];
+                    const p1 = cur[i];
+                    const p2 = cur[i + 1];
+                    if (isNearCenters(p1, centers, DISPLAY_SMOOTH_LOCK_RADIUS)) {
+                        next.push(p1);
+                        continue;
+                    }
+                    const cand = new THREE.Vector3(
+                        0.2 * p0.x + 0.6 * p1.x + 0.2 * p2.x,
+                        0.2 * p0.y + 0.6 * p1.y + 0.2 * p2.y,
+                        0.2 * p0.z + 0.6 * p1.z + 0.2 * p2.z
+                    );
+                    const dx = cand.x - p1.x;
+                    const dz = cand.z - p1.z;
+                    const d = Math.sqrt(dx * dx + dz * dz);
+                    if (d > DISPLAY_SMOOTH_MAX_SHIFT) {
+                        const s = DISPLAY_SMOOTH_MAX_SHIFT / d;
+                        cand.x = p1.x + dx * s;
+                        cand.z = p1.z + dz * s;
+                    }
+                    enforceDisplayClearance(cand);
+                    next.push(cand);
+                }
+                next.push(cur[cur.length - 1]);
+                cur = next;
+            }
+
+            return cur;
+        }
         function createTube(curve, color, op=0.8, radius=0.6) {
             const segments = getTubeSegments(curve);
             curve.arcLengthDivisions = Math.max(curve.arcLengthDivisions || 200, segments * 2);
@@ -1197,7 +1306,7 @@
                 
                 // PID Paths (Red)
                 pidExp.paths.forEach((pathPoints, idx) => {
-                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const pts = smoothDisplayPoints(pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                     const c = new THREE.CatmullRomCurve3(pts);
                     createTube(c, 0xff0000, 0.6, 0.15);
                     if (idx === 0) cP = c;
@@ -1205,25 +1314,25 @@
 
                 // FEAR-PID Paths (Blue)
                 fearExp.paths.forEach((pathPoints, idx) => {
-                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const pts = smoothDisplayPoints(pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                     const c = new THREE.CatmullRomCurve3(pts);
                     createTube(c, 0x0088ff, 0.6, 0.15);
                     if (idx === 0) cF = c;
                 });
             } else if (pidExp && fearExp && pidExp.points && fearExp.points) {
                 console.log("Using pre-calculated ATC paths from JSON (Single-path)");
-                const ptsP = pidExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-                const ptsF = fearExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                const ptsP = smoothDisplayPoints(pidExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z)));
+                const ptsF = smoothDisplayPoints(fearExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                 cP = new THREE.CatmullRomCurve3(ptsP);
                 cF = new THREE.CatmullRomCurve3(ptsF);
                 createTube(cF,0x0088ff); createTube(cP,0xff0000);
             } else {
                 console.log("Generating ATC paths on the fly");
-                const baseC = genPath(waypoints, 'ACS-DS'); const clean = baseC.getPoints(300);
+                const baseC = genPath(waypoints, 'ACS-DS'); const clean = smoothDisplayPoints(baseC.getPoints(300));
                 const noisy = clean.map((p,i)=> {
                     const np=p.clone(); if(i>20&&i<280){ np.y+=Math.sin(i*0.1)*8; np.x+=Math.sin(i*0.05)*12; } return np;
                 });
-                cF=new THREE.CatmullRomCurve3(clean); cP=new THREE.CatmullRomCurve3(noisy);
+                cF=new THREE.CatmullRomCurve3(clean); cP=new THREE.CatmullRomCurve3(smoothDisplayPoints(noisy));
                 createTube(cF,0x0088ff); createTube(cP,0xff0000);
             }
 
@@ -1276,7 +1385,7 @@
                 
                  // ACS (Yellow)
                  acsExp.paths.forEach((pathPoints, idx) => {
-                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const pts = smoothDisplayPoints(pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                     const c = new THREE.CatmullRomCurve3(pts);
                     createTube(c, 0xffff00, 0.6, 0.15);
                     if (idx === 0) c1 = c;
@@ -1284,7 +1393,7 @@
 
                 // TD3 (Green)
                 td3Exp.paths.forEach((pathPoints, idx) => {
-                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const pts = smoothDisplayPoints(pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                     const c = new THREE.CatmullRomCurve3(pts);
                     createTube(c, 0x00ff00, 0.6, 0.15);
                     if (idx === 0) c2 = c;
@@ -1292,16 +1401,16 @@
 
                 // ACS-DS (Blue)
                 acsDsExp.paths.forEach((pathPoints, idx) => {
-                    const pts = pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                    const pts = smoothDisplayPoints(pathPoints.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                     const c = new THREE.CatmullRomCurve3(pts);
                     createTube(c, 0x0088ff, 0.6, 0.15);
                     if (idx === 0) c3 = c;
                 });
             } else if (acsExp && td3Exp && acsDsExp && acsExp.points) {
                 console.log("Using pre-calculated Path Planning paths from JSON (Single-path)");
-                const pts1 = acsExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-                const pts2 = td3Exp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-                const pts3 = acsDsExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
+                const pts1 = smoothDisplayPoints(acsExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z)));
+                const pts2 = smoothDisplayPoints(td3Exp.points.map(p => new THREE.Vector3(p.x, p.y, p.z)));
+                const pts3 = smoothDisplayPoints(acsDsExp.points.map(p => new THREE.Vector3(p.x, p.y, p.z)));
                 c1 = new THREE.CatmullRomCurve3(pts1);
                 c2 = new THREE.CatmullRomCurve3(pts2);
                 c3 = new THREE.CatmullRomCurve3(pts3);
@@ -1312,9 +1421,9 @@
                 const rawC2 = genPath(waypoints,'TD3'); 
                 const rawC3 = genPath(waypoints,'ACS-DS');
                 
-                const pts1 = rawC1.getPoints(300); c1 = new THREE.CatmullRomCurve3(pts1);
-                const pts2 = rawC2.getPoints(300); c2 = new THREE.CatmullRomCurve3(pts2);
-                const pts3 = rawC3.getPoints(300); c3 = new THREE.CatmullRomCurve3(pts3);
+                const pts1 = smoothDisplayPoints(rawC1.getPoints(300)); c1 = new THREE.CatmullRomCurve3(pts1);
+                const pts2 = smoothDisplayPoints(rawC2.getPoints(300)); c2 = new THREE.CatmullRomCurve3(pts2);
+                const pts3 = smoothDisplayPoints(rawC3.getPoints(300)); c3 = new THREE.CatmullRomCurve3(pts3);
                 createTube(c1,0xffff00,0.6); createTube(c2,0x00ff00,0.6); createTube(c3,0x0088ff,0.9);
             }
             
@@ -1354,7 +1463,7 @@
             if(appMode.includes('FLY')) {
                 expDrones.forEach(d => {
                     // Slower movement speed for better visibility
-                    d.t += dt * 0.015; if(d.t>1) d.t=0;
+                    d.t += dt * 0.012; if(d.t>1) d.t=0;
                     const p = d.c.getPointAt(d.t); const np = d.c.getPointAt(Math.min(d.t+0.01,1));
                     
                     // Offset drone visually to ride ON TOP of path
