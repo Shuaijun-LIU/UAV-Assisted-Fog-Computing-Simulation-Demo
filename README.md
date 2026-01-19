@@ -1,6 +1,15 @@
 # UAV-Assisted Fog Computing Simulation Demo
 
-This demo is an interactive mini demonstration created for the paper **"Energy-Aware Holistic Optimization in UAV-Assisted Fog Computing: Attitude, Trajectory, and Task Assignment"**, designed to help reviewers quickly understand our simulation environment when submitting to the Computer Networks journal.
+<a href="https://arxiv.org/abs/2407.14894"><img src="https://img.shields.io/badge/arXiv-2407.14894-b31b1b.svg" alt="arXiv"></a> <a href="https://shuaijun-liu.github.io/HATTO-UFog/"><img src="https://img.shields.io/badge/Website-HATTO--UFog-6366F1.svg" alt="Website"></a> <a href="https://shuaijun-liu.github.io/UAV-Assisted-Fog-Computing-Simulation-Demo"><img src="https://img.shields.io/badge/Demo-Web--based-FF6B35.svg" alt="Demo"></a> <a href="https://github.com/Shuaijun-LIU/HATTO-UFog"><img src="https://img.shields.io/badge/Main%20Repo-HATTO--UFog-181717.svg" alt="Main Repo"></a>
+
+This demo is an interactive mini demonstration created for the work **"Energy-Aware Holistic Optimization in UAV-Assisted Fog Computing: Attitude, Trajectory, and Task Assignment"**, designed to help quickly understand our simulation environment.
+
+<p align="center">
+  <img src="example/path_side_by_side.gif" alt="Path Planning Visualization" width="800" />
+</p>
+<p align="center">
+  <img src="example/atc_side_by_side.gif" alt="Attitude Control Visualization" width="800" />
+</p>
 
 ## Background
 
@@ -112,6 +121,15 @@ Control mode uses a simplified **FEAR-PID** control algorithm:
 - **X/Z Axes**: Unit length (1 unit = 100 meters)
 - **Y Axis**: Meters
 - **Distance**: Unit length
+
+### Static Visualizations
+
+<p align="center">
+  <img src="example/path_planning_static.png" alt="Path Planning Static View" width="800" />
+</p>
+<p align="center">
+  <img src="example/path_atc_static.png" alt="Attitude Control Static View" width="800" />
+</p>
 
 ## Notes
 
