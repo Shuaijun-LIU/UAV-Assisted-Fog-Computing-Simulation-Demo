@@ -55,3 +55,6 @@ node_modules/
 *.tmp
 *.temp
 
+# Large GIF files (use small versions instead)
+example/atc_side_by_side.gif
+example/path_side_by_side.gif
